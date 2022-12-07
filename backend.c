@@ -6,7 +6,13 @@ int parar = 0;
 int pidf;
 
 void stopReadPromotor(int sign){
-    kill(pidf,SIGUSR1);
+    union sigval val;
+    val.sival_int = 1;
+    sigqueue(pidf,SIGUSR1,val);
+    signal(SIGINT,SIG_DFL);
+    parar = 1;
+}
+void stopValidatingLogs(int sign){
     signal(SIGINT,SIG_DFL);
     parar = 1;
 }
@@ -14,13 +20,15 @@ void stopReadPromotor(int sign){
 int main() {
 
     int opc;
+    int estado;
     do {
     printf("Deseja testar qual opção?\n");
     printf("1-Comandos\n");
     printf("2-Execução do promotor\n");
     printf("3-Utilizadores\n");
     printf("4-Items\n");
-    printf("5-Terminar\n");
+    printf("5-Verificar login\n");
+    printf("6-Terminar\n");
     printf("Opção: ");
     scanf("%d", &opc);
         switch (opc) {
@@ -240,6 +248,7 @@ int main() {
                                 }
                             }
                         }
+                        wait(&estado);
                     }
                 }
                 break;
@@ -279,6 +288,8 @@ int main() {
                 else{
                     printf("Erro ao atualizar o saldo do utilizador %s.\n%s\n",usr ,getLastErrorText());
                 }
+
+                saveUsersFile(FUSERS);
 
                 break;
             }
@@ -384,6 +395,71 @@ int main() {
                 break;
             }
             case 5:{
+                int fd_sv_fifo;
+                int fd_cli_fifo;
+                char res_cli_fifo[MAX_SIZE_FIFO];
+                int dados;
+                ut user;
+
+                //Verifica se a variavel de ambiente FUSERS existe
+                if(getenv("FUSERS") == NULL){
+                    printf("A variável de ambiente 'FUSERS' não foi definida.\n");
+                    exit(1);
+                }
+                else{
+                    FUSERS = getenv("FUSERS");
+                    printf("\nVariável de ambiente 'FUSERS' = %s\n\n",FUSERS);
+                }
+
+                int nUtilizadores = loadUsersFile(FUSERS);
+                printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
+
+                if(access(BKND_FIFO,F_OK) == 0){
+                    printf("O BACKEND já está em execução!");
+                    exit(1);
+                }
+                mkfifo(BKND_FIFO,0600);
+
+                fd_sv_fifo = open(BKND_FIFO,O_RDWR);
+
+                struct sigaction sa;
+                    sa.sa_handler = stopValidatingLogs;
+                    sa.sa_flags = SA_SIGINFO;
+                sigaction(SIGINT,&sa,NULL);
+
+                parar = 0;
+                while(parar == 0){
+                    dados = read(fd_sv_fifo,&user,sizeof(ut));
+
+                    if(dados == sizeof(ut)){
+                        printf("Logs recebidos: %s %s\n",user.nome,user.password);
+                    }
+
+                    user.valid = isUserValid(user.nome,user.password);
+                    if(user.valid == 0){
+                        sprintf(res_cli_fifo,FRND_FIFO,user.pid);
+                        fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
+                        write(fd_cli_fifo,&user,sizeof(ut));
+                        close(fd_cli_fifo);
+                    }
+                    else if(user.valid == 1){
+                        sprintf(res_cli_fifo,FRND_FIFO,user.pid);
+                        fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
+                        write(fd_cli_fifo,&user,sizeof(ut));
+                        close(fd_cli_fifo);
+                    }
+                    else{
+                        printf("[ERRO] %s\n", getLastErrorText());
+                    }
+                }
+
+                close(fd_cli_fifo);
+                close(fd_sv_fifo);
+                unlink(res_cli_fifo);
+
+                break;
+            }
+            case 6:{
                 return 0;
             }
             default:

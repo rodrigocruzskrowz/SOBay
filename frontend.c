@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
         user.pid = -1;
 
         //Verifica se o backend está em execução
-        if(access(BKND_FIFO, F_OK) !=0){
+        if(access(BKND_FIFO, F_OK) != 0){
             printf("O BACKEND não está em execução.\n");
             exit(1);
         }
@@ -28,7 +28,9 @@ int main(int argc, char *argv[])
 
         //Cria FIFO do cliente
         user.pid = getpid();
+        printf("pid %d\n",user.pid);
         sprintf(cli_fifo,FRND_FIFO,user.pid);
+        printf("cli_fifo %s\n",cli_fifo);
         if(access(cli_fifo,F_OK) != 0)
             mkfifo(cli_fifo,0600);
         fd_cli_fifo = open(cli_fifo,O_RDWR);

@@ -69,7 +69,7 @@ build CMakeFiles/SOBay.dir/utils.c.o: C_COMPILER__SOBay_Debug /home/rodrigocruz/
 #############################################
 # Link the executable SOBay
 
-build SOBay: C_EXECUTABLE_LINKER__SOBay_Debug CMakeFiles/SOBay.dir/frontend.c.o CMakeFiles/SOBay.dir/utils.c.o
+build SOBay: C_EXECUTABLE_LINKER__SOBay_Debug ../users_lib.o CMakeFiles/SOBay.dir/frontend.c.o CMakeFiles/SOBay.dir/utils.c.o
   FLAGS = -g
   OBJECT_DIR = CMakeFiles/SOBay.dir
   POST_BUILD = :
