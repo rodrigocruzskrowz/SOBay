@@ -6,6 +6,7 @@ int main(int argc, char *argv[])
     ut user;
     int fd_bknd_fifo;
     int fd_cli_fifo;
+    char cli_fifo[MAX_SIZE_FIFO];
     if(argc == 3){
         //Inicializa estrutura do utilizador
         user.nome = argv[1];
@@ -27,7 +28,6 @@ int main(int argc, char *argv[])
 
         //Cria FIFO do cliente
         user.pid = getpid();
-        char cli_fifo[MAX_SIZE_FIFO];
         sprintf(cli_fifo,FRND_FIFO,user.pid);
         if(access(cli_fifo,F_OK) != 0)
             mkfifo(cli_fifo,0600);
@@ -64,7 +64,8 @@ int main(int argc, char *argv[])
                 else{
                     printf("Credênciais erradas. Acesso negado!\n\n");
                     close(fd_bknd_fifo);
-                    unlink(fd_cli_fifo);
+                    close(fd_cli_fifo);
+                    unlink(cli_fifo);
                     exit(1);
                 }
             }
@@ -371,7 +372,8 @@ int main(int argc, char *argv[])
     }
 
     close(fd_bknd_fifo);
-    unlink(fd_cli_fifo);
+    close(fd_cli_fifo);
+    unlink(cli_fifo);
 
     return 0;
 }
