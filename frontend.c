@@ -148,7 +148,9 @@ int main(int argc, char *argv[])
                         }
 
                         if(isValid == 0)
-                            continue;
+                            continue;close(fd_bknd_fifo);
+                close(fd_cli_fifo);
+                unlink(cli_fifo);
 
                         //Verificar se duração é inteiro
                         j=0;
