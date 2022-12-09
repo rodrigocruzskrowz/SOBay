@@ -13,6 +13,7 @@ void stopReadPromotor(int sign){
     parar = 1;
 }
 void stopValidatingLogs(int sign){
+
     signal(SIGINT,SIG_DFL);
     parar = 1;
 }
@@ -400,7 +401,7 @@ int main() {
                 int fd_cli_fifo;
                 char res_cli_fifo[MAX_SIZE_FIFO];
                 int dados;
-                ut user;
+                User user;
 
                 //Verifica se a variavel de ambiente FUSERS existe
                 if(getenv("FUSERS") == NULL){
@@ -429,9 +430,9 @@ int main() {
 
                 parar = 0;
                 while(parar == 0){
-                    dados = read(fd_sv_fifo,&user,sizeof(ut));
+                    dados = read(fd_sv_fifo,&user,sizeof(User));
 
-                    if(dados == sizeof(ut)){
+                    if(dados == sizeof(User)){
                         printf("Logs recebidos: %s %s\n",user.nome,user.password);
                     }
 
@@ -439,14 +440,14 @@ int main() {
                     if(user.valid == 0){
                         sprintf(res_cli_fifo,FRND_FIFO,user.pid);
                         fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
-                        write(fd_cli_fifo,&user,sizeof(ut));
+                        write(fd_cli_fifo,&user,sizeof(User));
                         close(fd_cli_fifo);
                     }
                     else if(user.valid == 1){
                         user.saldo = getUserBalance(user.nome);
                         sprintf(res_cli_fifo,FRND_FIFO,user.pid);
                         fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
-                        write(fd_cli_fifo,&user,sizeof(ut));
+                        write(fd_cli_fifo,&user,sizeof(User));
                         close(fd_cli_fifo);
                     }
                     else{
@@ -454,7 +455,7 @@ int main() {
                     }
                 }
 
-//                close(fd_cli_fifo);
+                close(fd_cli_fifo);
                 close(fd_sv_fifo);
                 unlink(res_cli_fifo);
 

@@ -1,7 +1,7 @@
 #ifndef SOBay_FRONTEND_H
 #define SOBay_FRONTEND_H
 
-typedef struct Utilizador ut;
+typedef struct Utilizador User;
 struct Utilizador{
     char nome[100];
     char password[100];

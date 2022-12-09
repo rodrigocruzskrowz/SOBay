@@ -22,7 +22,7 @@
 #define MAX_PROMOTORES 10
 #define MAX_ITEMS 30
 
-#define BKND_FIFO "bkndfifo"
+#define BKND_FIFO "bknd"
 #define FRND_FIFO "user_%d"
 
 #endif //SOBAY_UTILS_H

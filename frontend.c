@@ -3,7 +3,7 @@
 
 int main(int argc, char *argv[])
 {
-    ut user;
+    User user;
     int fd_bknd_fifo;
     int fd_cli_fifo;
     char cli_fifo[MAX_SIZE_FIFO];
@@ -40,15 +40,15 @@ int main(int argc, char *argv[])
         }
 
         //Envia login para o BACKEND
-        int n = write(fd_bknd_fifo,&user,sizeof(ut));
-//        if(n == sizeof(ut)){
+        int n = write(fd_bknd_fifo,&user,sizeof(User));
+//        if(n == sizeof(User)){
 //            printf("Enviei %s %s %d\n",user.nome, user.password,user.pid);
 //        }
 
         //Recebe validação do login
         int resposta;
-        resposta = read(fd_cli_fifo,&user,sizeof(ut));
-        if(resposta == sizeof(ut)){
+        resposta = read(fd_cli_fifo,&user,sizeof(User));
+        if(resposta == sizeof(User)){
             if(user.valid == 1){
                 printf("Olá, %s!\nO seu saldo é de: %d\n\n",user.nome,user.saldo);
             }
