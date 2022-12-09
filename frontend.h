@@ -3,8 +3,8 @@
 
 typedef struct Utilizador ut;
 struct Utilizador{
-    char *nome;
-    char *password;
+    char nome[100];
+    char password[100];
     int saldo;
     int valid;
     int pid;

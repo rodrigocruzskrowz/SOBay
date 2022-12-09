@@ -41,41 +41,78 @@ include CMakeFiles/rules.ninja
 
 cmake_ninja_workdir = /home/rodrigocruz/Github/SOBay/cmake-build-debug/
 # =============================================================================
-# Object build statements for EXECUTABLE target SOBay
+# Object build statements for EXECUTABLE target frontend
 
 
 #############################################
-# Order-only phony target for SOBay
+# Order-only phony target for frontend
 
-build cmake_object_order_depends_target_SOBay: phony || CMakeFiles/SOBay.dir
+build cmake_object_order_depends_target_frontend: phony || CMakeFiles/frontend.dir
 
-build CMakeFiles/SOBay.dir/frontend.c.o: C_COMPILER__SOBay_Debug /home/rodrigocruz/Github/SOBay/frontend.c || cmake_object_order_depends_target_SOBay
-  DEP_FILE = CMakeFiles/SOBay.dir/frontend.c.o.d
+build CMakeFiles/frontend.dir/frontend.c.o: C_COMPILER__frontend_Debug /home/rodrigocruz/Github/SOBay/frontend.c || cmake_object_order_depends_target_frontend
+  DEP_FILE = CMakeFiles/frontend.dir/frontend.c.o.d
   FLAGS = -g -std=gnu99
-  OBJECT_DIR = CMakeFiles/SOBay.dir
-  OBJECT_FILE_DIR = CMakeFiles/SOBay.dir
+  OBJECT_DIR = CMakeFiles/frontend.dir
+  OBJECT_FILE_DIR = CMakeFiles/frontend.dir
 
-build CMakeFiles/SOBay.dir/utils.c.o: C_COMPILER__SOBay_Debug /home/rodrigocruz/Github/SOBay/utils.c || cmake_object_order_depends_target_SOBay
-  DEP_FILE = CMakeFiles/SOBay.dir/utils.c.o.d
+build CMakeFiles/frontend.dir/utils.c.o: C_COMPILER__frontend_Debug /home/rodrigocruz/Github/SOBay/utils.c || cmake_object_order_depends_target_frontend
+  DEP_FILE = CMakeFiles/frontend.dir/utils.c.o.d
   FLAGS = -g -std=gnu99
-  OBJECT_DIR = CMakeFiles/SOBay.dir
-  OBJECT_FILE_DIR = CMakeFiles/SOBay.dir
+  OBJECT_DIR = CMakeFiles/frontend.dir
+  OBJECT_FILE_DIR = CMakeFiles/frontend.dir
 
 
 # =============================================================================
-# Link build statements for EXECUTABLE target SOBay
+# Link build statements for EXECUTABLE target frontend
 
 
 #############################################
-# Link the executable SOBay
+# Link the executable frontend
 
-build SOBay: C_EXECUTABLE_LINKER__SOBay_Debug ../users_lib.o CMakeFiles/SOBay.dir/frontend.c.o CMakeFiles/SOBay.dir/utils.c.o
+build frontend: C_EXECUTABLE_LINKER__frontend_Debug ../users_lib.o CMakeFiles/frontend.dir/frontend.c.o CMakeFiles/frontend.dir/utils.c.o
   FLAGS = -g
-  OBJECT_DIR = CMakeFiles/SOBay.dir
+  OBJECT_DIR = CMakeFiles/frontend.dir
   POST_BUILD = :
   PRE_LINK = :
-  TARGET_FILE = SOBay
-  TARGET_PDB = SOBay.dbg
+  TARGET_FILE = frontend
+  TARGET_PDB = frontend.dbg
+
+# =============================================================================
+# Object build statements for EXECUTABLE target backend
+
+
+#############################################
+# Order-only phony target for backend
+
+build cmake_object_order_depends_target_backend: phony || CMakeFiles/backend.dir
+
+build CMakeFiles/backend.dir/backend.c.o: C_COMPILER__backend_Debug /home/rodrigocruz/Github/SOBay/backend.c || cmake_object_order_depends_target_backend
+  DEP_FILE = CMakeFiles/backend.dir/backend.c.o.d
+  FLAGS = -g -std=gnu99
+  OBJECT_DIR = CMakeFiles/backend.dir
+  OBJECT_FILE_DIR = CMakeFiles/backend.dir
+
+build CMakeFiles/backend.dir/utils.c.o: C_COMPILER__backend_Debug /home/rodrigocruz/Github/SOBay/utils.c || cmake_object_order_depends_target_backend
+  DEP_FILE = CMakeFiles/backend.dir/utils.c.o.d
+  FLAGS = -g -std=gnu99
+  OBJECT_DIR = CMakeFiles/backend.dir
+  OBJECT_FILE_DIR = CMakeFiles/backend.dir
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target backend
+
+
+#############################################
+# Link the executable backend
+
+build backend: C_EXECUTABLE_LINKER__backend_Debug ../users_lib.o CMakeFiles/backend.dir/backend.c.o CMakeFiles/backend.dir/utils.c.o
+  FLAGS = -g
+  OBJECT_DIR = CMakeFiles/backend.dir
+  POST_BUILD = :
+  PRE_LINK = :
+  TARGET_FILE = backend
+  TARGET_PDB = backend.dbg
 
 
 #############################################
@@ -112,7 +149,7 @@ build rebuild_cache: phony CMakeFiles/rebuild_cache.util
 #############################################
 # Folder: /home/rodrigocruz/Github/SOBay/cmake-build-debug
 
-build all: phony SOBay
+build all: phony frontend backend
 
 # =============================================================================
 # Built-in targets

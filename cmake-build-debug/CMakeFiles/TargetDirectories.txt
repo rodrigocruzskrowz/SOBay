@@ -1,3 +1,4 @@
-/home/rodrigocruz/Github/SOBay/cmake-build-debug/CMakeFiles/SOBay.dir
+/home/rodrigocruz/Github/SOBay/cmake-build-debug/CMakeFiles/frontend.dir
+/home/rodrigocruz/Github/SOBay/cmake-build-debug/CMakeFiles/backend.dir
 /home/rodrigocruz/Github/SOBay/cmake-build-debug/CMakeFiles/edit_cache.dir
 /home/rodrigocruz/Github/SOBay/cmake-build-debug/CMakeFiles/rebuild_cache.dir

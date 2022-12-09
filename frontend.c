@@ -9,8 +9,10 @@ int main(int argc, char *argv[])
     char cli_fifo[MAX_SIZE_FIFO];
     if(argc == 3){
         //Inicializa estrutura do utilizador
-        user.nome = argv[1];
-        user.password = argv[2];
+        strcpy(user.nome,argv[1]);
+        //user.nome = argv[1];
+        strcpy(user.password,argv[2]);
+        //user.password = argv[2];
         user.saldo = -1;
         user.valid = 0;
         user.pid = -1;
@@ -28,55 +30,72 @@ int main(int argc, char *argv[])
 
         //Cria FIFO do cliente
         user.pid = getpid();
-        printf("pid %d\n",user.pid);
         sprintf(cli_fifo,FRND_FIFO,user.pid);
-        printf("cli_fifo %s\n",cli_fifo);
         if(access(cli_fifo,F_OK) != 0)
             mkfifo(cli_fifo,0600);
         fd_cli_fifo = open(cli_fifo,O_RDWR);
         if(fd_cli_fifo == -1){
-            printf("Não foi possível abrir o canal de comunicação com o BACKEND.\n");
+            printf("Não foi possível criar o canal de comunicação com o BACKEND.\n");
             exit(1);
         }
 
         //Envia login para o BACKEND
-        write(fd_bknd_fifo,&user,sizeof(ut));
+        int n = write(fd_bknd_fifo,&user,sizeof(ut));
+//        if(n == sizeof(ut)){
+//            printf("Enviei %s %s %d\n",user.nome, user.password,user.pid);
+//        }
+
+        //Recebe validação do login
+        int resposta;
+        resposta = read(fd_cli_fifo,&user,sizeof(ut));
+        if(resposta == sizeof(ut)){
+            if(user.valid == 1){
+                printf("Olá, %s!\nO seu saldo é de: %d\n\n",user.nome,user.saldo);
+            }
+            else{
+                printf("Credênciais erradas. Acesso negado!\n\n");
+                close(fd_bknd_fifo);
+                close(fd_cli_fifo);
+                unlink(cli_fifo);
+                exit(1);
+            }
+        }
 
         //Select
         fd_set fd;
-        int sel;
+        int res_sel;
         struct timeval timeout;
 
+        int printComando = 1;
         while(1){
+            if(printComando == 1) {
+                printf("\ncomando > ");
+                fflush(stdout);
+                printComando = 0;
+            }
+
             FD_ZERO(&fd);
             FD_SET(0,&fd);
             FD_SET(fd_cli_fifo, &fd);
             timeout.tv_sec = 10;
             timeout.tv_usec = 0;
 
-            sel = select(fd_cli_fifo+1,&fd,NULL,NULL,&timeout);
+            res_sel = select(fd_cli_fifo + 1, &fd, NULL, NULL, &timeout);
 
-            if(sel > 0 && FD_ISSET(fd_cli_fifo,&fd)){
-                //Recebe validação do login
-                int resposta;
-                resposta = read(fd_cli_fifo,&user,sizeof(ut));
-                if(user.valid == 1){
-                    printf("Olá, %s!\nO seu saldo é de: %d\n\n",user.nome,user.saldo);
-                }
-                else{
-                    printf("Credênciais erradas. Acesso negado!\n\n");
-                    close(fd_bknd_fifo);
-                    close(fd_cli_fifo);
-                    unlink(cli_fifo);
-                    exit(1);
-                }
+            if(res_sel == -1){
+                printf("[ERRO] ERRO NO SELECT - %s\n", strerror(errno));
+                break;
             }
-            else if(sel > 0 && FD_ISSET(0,&fd)){
+            if(res_sel > 0 && FD_ISSET(fd_cli_fifo, &fd)){
+                //Trata dados recebidos
+
+            }
+            if(res_sel > 0 && FD_ISSET(0, &fd)){
                 //Lê comando
+                printComando = 1;
                 char str[MAX_SIZE];
                 char comando[6][MAX_SIZE];
                 int i=0,j=0,c=0;
-                printf("\ncommand > ");
                 fgets(str,sizeof str,stdin);
                 for(i=0;i<=(strlen(str));i++){
                     if(str[i]==' ' || str[i]=='\n'){
@@ -343,6 +362,9 @@ int main(int argc, char *argv[])
                         //Avisa o backend que o cliente saiu
 
                         //Sair
+                        close(fd_bknd_fifo);
+                        close(fd_cli_fifo);
+                        unlink(cli_fifo);
                         exit(1);
                     }
                     else {

@@ -39,6 +39,7 @@ int main() {
                 while (1) {
                     int i = 0, j = 0, c = 0;
                     printf("\ncommand > ");
+                    fflush(stdout);
                     setbuf(stdin, NULL); //stdin flush
                     fgets(str, sizeof str, stdin);
 
@@ -405,6 +406,7 @@ int main() {
                 if(getenv("FUSERS") == NULL){
                     printf("A variável de ambiente 'FUSERS' não foi definida.\n");
                     exit(1);
+//                    FUSERS = "../users.txt";
                 }
                 else{
                     FUSERS = getenv("FUSERS");
@@ -415,13 +417,11 @@ int main() {
                 printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
 
                 if(access(BKND_FIFO,F_OK) == 0){
-                    printf("O BACKEND já está em execução!");
+                    printf("O BACKEND já está em execução!\n");
                     exit(1);
                 }
                 mkfifo(BKND_FIFO,0600);
-
                 fd_sv_fifo = open(BKND_FIFO,O_RDWR);
-
                 struct sigaction sa;
                     sa.sa_handler = stopValidatingLogs;
                     sa.sa_flags = SA_SIGINFO;
@@ -443,6 +443,7 @@ int main() {
                         close(fd_cli_fifo);
                     }
                     else if(user.valid == 1){
+                        user.saldo = getUserBalance(user.nome);
                         sprintf(res_cli_fifo,FRND_FIFO,user.pid);
                         fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
                         write(fd_cli_fifo,&user,sizeof(ut));
@@ -453,7 +454,7 @@ int main() {
                     }
                 }
 
-                close(fd_cli_fifo);
+//                close(fd_cli_fifo);
                 close(fd_sv_fifo);
                 unlink(res_cli_fifo);
 

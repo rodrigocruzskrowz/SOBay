@@ -3,11 +3,22 @@ project(SOBay C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(SOBay
+add_executable(frontend
 #        backend.h
 #        backend.c
         frontend.h
         frontend.c
+        utils.h
+        utils.c
+        users_lib.h
+        users_lib.o
+        )
+
+add_executable(backend
+        backend.h
+        backend.c
+#        frontend.h
+#        frontend.c
         utils.h
         utils.c
         users_lib.h

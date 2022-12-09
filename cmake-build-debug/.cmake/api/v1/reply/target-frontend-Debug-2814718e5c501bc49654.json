@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "SOBay"
+			"path" : "frontend"
 		}
 	],
 	"backtrace" : 1,
@@ -57,7 +57,7 @@
 			]
 		}
 	],
-	"id" : "SOBay::@6890427a1f51a3e7e1df",
+	"id" : "frontend::@6890427a1f51a3e7e1df",
 	"link" : 
 	{
 		"commandFragments" : 
@@ -73,8 +73,8 @@
 		],
 		"language" : "C"
 	},
-	"name" : "SOBay",
-	"nameOnDisk" : "SOBay",
+	"name" : "frontend",
+	"nameOnDisk" : "frontend",
 	"paths" : 
 	{
 		"build" : ".",

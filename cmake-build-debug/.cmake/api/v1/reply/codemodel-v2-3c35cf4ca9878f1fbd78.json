@@ -15,7 +15,8 @@
 					"source" : ".",
 					"targetIndexes" : 
 					[
-						0
+						0,
+						1
 					]
 				}
 			],
@@ -30,7 +31,8 @@
 					"name" : "SOBay",
 					"targetIndexes" : 
 					[
-						0
+						0,
+						1
 					]
 				}
 			],
@@ -38,9 +40,16 @@
 			[
 				{
 					"directoryIndex" : 0,
-					"id" : "SOBay::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-SOBay-Debug-12dcc1f4c6bbc23c2491.json",
-					"name" : "SOBay",
+					"id" : "backend::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-backend-Debug-67b373bd573fbbe63f88.json",
+					"name" : "backend",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "frontend::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-frontend-Debug-2814718e5c501bc49654.json",
+					"name" : "frontend",
 					"projectIndex" : 0
 				}
 			]
