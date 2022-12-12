@@ -1,10 +1,12 @@
 #ifndef SOBay_FRONTEND_H
 #define SOBay_FRONTEND_H
 
+#include "utils.h"
+
 typedef struct Utilizador User;
 struct Utilizador{
-    char nome[100];
-    char password[100];
+    char nome[MAX_SIZE];
+    char password[MAX_SIZE];
     int saldo;
     int valid;
     int pid;

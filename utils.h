@@ -12,8 +12,6 @@
 #include <fcntl.h>
 #include "stdlib.h"
 
-#include "frontend.h"
-
 #include <errno.h>
 
 #define MAX_SIZE 256

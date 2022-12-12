@@ -152,7 +152,7 @@ int main() {
                 else {
                     while((nbytes = read(fd,&c,1)) > 0){ //le byte por byte
                         //printf("%c",c);
-                        if(c == ' ' || c == '\n' || c == EOF){
+                        if(c == ' ' || c == '\n'){
                             promotorList[i][j] ='\0';
                             j = 0;
 
@@ -299,7 +299,8 @@ int main() {
                 //Verifica se a variavel de ambiente FITEMS existe
                 if(getenv("FITEMS") == NULL){
                     printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-                    exit(1);
+                    FITEMS = "../items.txt";
+                    //exit(1);
                 }
                 else{
                     FITEMS = getenv("FITEMS");
@@ -318,9 +319,9 @@ int main() {
             }
             else{
                 printf("\nInformação do ficheiro: \n");
-                while((nbytes = read(fd,&c,1)) > 0){ //le byte por byte
+                while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
                     //printf("%c",c);
-                    if(c == ' ' || c == '\n' || c == EOF){
+                    if((c == ' ' && nbytes != 0) || (c == '\n' && nbytes != 0) || nbytes == 0){
                         str[cont++]='\0';
                         cont = 0;
                         switch (arg){
@@ -372,7 +373,7 @@ int main() {
                         }
                         arg++;
 
-                        if(c == '\n'){
+                        if((c == '\n' && nbytes != 0) || nbytes == 0){
                             printf("\n:::ITEM %d:::\n",i+1);
                             printf("ID: %d\n", item[i].id);
                             printf("Item: %s\n", item[i].nome);
@@ -382,6 +383,9 @@ int main() {
                             printf("Tempo de venda: %d\n", item[i].tempo);
                             printf("Vendedor: %s\n", item[i].vendedor);
                             printf("Licitador: %s\n", item[i].licitador);
+
+                            if(nbytes == 0)
+                                break;
 
                             if(i < MAX_ITEMS)
                                 i++;
