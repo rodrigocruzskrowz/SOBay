@@ -321,59 +321,9 @@ int main() {
                 printf("\nInformação do ficheiro: \n");
                 while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
                     //printf("%c",c);
-                    if((c == ' ' && nbytes != 0) || (c == '\n' && nbytes != 0) || nbytes == 0){
+                    if(c == '\n' || nbytes == 0){
                         str[cont++]='\0';
-                        cont = 0;
-                        switch (arg){
-                            case 0:{
-                                item[i].id = atoi(str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 1:{
-                                strcpy(item[i].nome,str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 2:{
-                                strcpy(item[i].categoria,str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 3:{
-                                item[i].bid = atoi(str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 4:{
-                                item[i].buyNow = atoi(str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 5:{
-                                item[i].tempo = atoi(str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 6:{
-                                strcpy(item[i].vendedor,str);
-                                memset(str,0,MAX_SIZE);
-                                break;
-                            }
-                            case 7:{
-                                strcpy(item[i].licitador,str);
-                                memset(str,0,MAX_SIZE);
-                                arg = -1;
-                                break;
-                            }
-                            default: {
-                                printf("[ERRO] Fora dos limites de atributos.");
-                                break;
-                            }
-                        }
-                        arg++;
-
-                        if((c == '\n' && nbytes != 0) || nbytes == 0){
+                        if(sscanf(str,"%d %s %s %d %d %d %s %s",&item[i].id,item[i].nome,item[i].categoria,&item[i].bid,&item[i].buyNow,&item[i].tempo,item[i].vendedor,item[i].licitador) == 8){
                             printf("\n:::ITEM %d:::\n",i+1);
                             printf("ID: %d\n", item[i].id);
                             printf("Item: %s\n", item[i].nome);
@@ -384,19 +334,104 @@ int main() {
                             printf("Vendedor: %s\n", item[i].vendedor);
                             printf("Licitador: %s\n", item[i].licitador);
 
-                            if(nbytes == 0)
-                                break;
-
                             if(i < MAX_ITEMS)
                                 i++;
                             else
                                 break;
+
+                            memset(str,0,MAX_SIZE);
+                            cont = 0;
+                            if(nbytes == 0)
+                                break;
                         }
+
+                        if(nbytes == 0)
+                            break;
                     }
                     else{
                         str[cont++] = c;
                     }
                 }
+
+//                printf("\nInformação do ficheiro: \n");
+//                while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
+//                    //printf("%c",c);
+//                    if((c == ' ' && nbytes != 0) || (c == '\n' && nbytes != 0) || nbytes == 0){
+//                        str[cont++]='\0';
+//                        cont = 0;
+//                        switch (arg){
+//                            case 0:{
+//                                item[i].id = atoi(str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 1:{
+//                                strcpy(item[i].nome,str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 2:{
+//                                strcpy(item[i].categoria,str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 3:{
+//                                item[i].bid = atoi(str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 4:{
+//                                item[i].buyNow = atoi(str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 5:{
+//                                item[i].tempo = atoi(str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 6:{
+//                                strcpy(item[i].vendedor,str);
+//                                memset(str,0,MAX_SIZE);
+//                                break;
+//                            }
+//                            case 7:{
+//                                strcpy(item[i].licitador,str);
+//                                memset(str,0,MAX_SIZE);
+//                                arg = -1;
+//                                break;
+//                            }
+//                            default: {
+//                                printf("[ERRO] Fora dos limites de atributos.");
+//                                break;
+//                            }
+//                        }
+//                        arg++;
+//
+//                        if((c == '\n' && nbytes != 0) || nbytes == 0){
+//                            printf("\n:::ITEM %d:::\n",i+1);
+//                            printf("ID: %d\n", item[i].id);
+//                            printf("Item: %s\n", item[i].nome);
+//                            printf("Categoria: %s\n", item[i].categoria);
+//                            printf("Licitação: %d\n", item[i].bid);
+//                            printf("Compre já: %d\n", item[i].buyNow);
+//                            printf("Tempo de venda: %d\n", item[i].tempo);
+//                            printf("Vendedor: %s\n", item[i].vendedor);
+//                            printf("Licitador: %s\n", item[i].licitador);
+//
+//                            if(nbytes == 0)
+//                                break;
+//
+//                            if(i < MAX_ITEMS)
+//                                i++;
+//                            else
+//                                break;
+//                        }
+//                    }
+//                    else{
+//                        str[cont++] = c;
+//                    }
+//                }
             }
                 break;
             }
