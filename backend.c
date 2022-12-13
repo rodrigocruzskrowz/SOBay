@@ -13,38 +13,26 @@ void stopReadPromotor(int sign){
     parar = 1;
 }
 void stopValidatingLogs(int sign){
+
     signal(SIGINT,SIG_DFL);
     parar = 1;
 }
 
-void initPlataforma(char nomeficheiro[]){
-
-}
-
 int main() {
 
-    int fd_init = open(FINIT, O_RDONLY);
-    if(fd_init == -1){
-        printf("\nFicheiro de inicialização não encontrado, a gerar novo ficheiro de inicialização...\n");
-        fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
-        char tempo[MAX_SIZE] = "1";
-        write(fd_init,tempo,strlen(tempo));
-        printf("Ficheiro de inicialização gerado!\n\n");
-    }
-    else{
-        char c[MAX_SIZE];
-        int tempo;
-        int nbytes;
-        while((nbytes = read(fd_init,&c,1)) > 0){
-            if(sscanf(c,"%d",&tempo) == 1){
-                TEMPO = tempo;
-                printf("TEMPO ATUAL: %d\n\n", TEMPO);
-            }
+    User uti;
+    item itm;
 
-            if(nbytes == 0)
-                break;
-        }
-    }
+    pthread_mutex_t mutex;
+    pthread_mutex_init (&mutex, NULL);
+    pthread_mutex_t mutexm;
+    pthread_mutex_init (&mutexm, NULL);
+    pthread_t th;
+    pthread_t thm;
+    itm.i  = &mutex;
+    uti.u  = &mutexm;
+
+    struct timeval tv;
 
     int opc;
     int estado;
@@ -178,7 +166,7 @@ int main() {
                 else {
                     while((nbytes = read(fd,&c,1)) > 0){ //le byte por byte
                         //printf("%c",c);
-                        if(c == ' ' || c == '\n'){
+                        if(c == ' ' || c == '\n' || c == EOF){
                             promotorList[i][j] ='\0';
                             j = 0;
 
@@ -212,8 +200,8 @@ int main() {
                         execl(promotorList[0], promotorList[0], NULL);
                     }
 
-                    printf("[ERRO] Não foi possível executar o promotor. Verifique se o nome do ficheiro está correto. '%s'\n",promotorList[0]);
-                    exit(1);
+                    printf("[ERRO] Não consegui executar o promotor!\n");
+                    break;
                 }
 
                 close(canal[1]);
@@ -240,6 +228,9 @@ int main() {
                             }
                             else{
                                 s[cont] = '\0';
+//                                printf("%s",s);
+//                                memset(s,0,MAX_SIZE);
+//                                printf("\nESPAÇO//bN\n");
                                 cont = 0;
                                 switch (arg) {
                                     case 0:{
@@ -322,7 +313,6 @@ int main() {
                 //Verifica se a variavel de ambiente FITEMS existe
                 if(getenv("FITEMS") == NULL){
                     printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-                    //FITEMS = "../items.txt";
                     exit(1);
                 }
                 else{
@@ -337,16 +327,66 @@ int main() {
 
             fd = open(FITEMS, O_RDONLY);
             if(fd==-1){
-                printf("\nFicheiro de items não encontrado! Não existem items listados para venda.\n");
+                printf("\nFicheiro de items não encontrado!\n");
                 break;
             }
             else{
                 printf("\nInformação do ficheiro: \n");
-                while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
+                while((nbytes = read(fd,&c,1)) > 0){ //le byte por byte
                     //printf("%c",c);
-                    if(c == '\n' || nbytes == 0){
+                    if(c == ' ' || c == '\n' || c == EOF){
                         str[cont++]='\0';
-                        if(sscanf(str,"%d %s %s %d %d %d %s %s",&item[i].id,item[i].nome,item[i].categoria,&item[i].bid,&item[i].buyNow,&item[i].tempo,item[i].vendedor,item[i].licitador) == 8){
+                        cont = 0;
+                        switch (arg){
+                            case 0:{
+                                item[i].id = atoi(str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 1:{
+                                strcpy(item[i].nome,str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 2:{
+                                strcpy(item[i].categoria,str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 3:{
+                                item[i].bid = atoi(str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 4:{
+                                item[i].buyNow = atoi(str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 5:{
+                                item[i].tempo = atoi(str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 6:{
+                                strcpy(item[i].vendedor,str);
+                                memset(str,0,MAX_SIZE);
+                                break;
+                            }
+                            case 7:{
+                                strcpy(item[i].licitador,str);
+                                memset(str,0,MAX_SIZE);
+                                arg = -1;
+                                break;
+                            }
+                            default: {
+                                printf("[ERRO] Fora dos limites de atributos.");
+                                break;
+                            }
+                        }
+                        arg++;
+
+                        if(c == '\n'){
                             printf("\n:::ITEM %d:::\n",i+1);
                             printf("ID: %d\n", item[i].id);
                             printf("Item: %s\n", item[i].nome);
@@ -361,18 +401,7 @@ int main() {
                                 i++;
                             else
                                 break;
-
-                            memset(str,0,MAX_SIZE);
-                            cont = 0;
-
                         }
-                        else{
-                            memset(str,0,MAX_SIZE);
-                            cont = 0;
-                        }
-
-                        if(nbytes == 0)
-                            break;
                     }
                     else{
                         str[cont++] = c;
@@ -455,4 +484,13 @@ int main() {
         }
         printf("\n\n\n");
     }while(opc!=5);
+
+ // pthread_create (&th, NULL, (void*) &fecharfifoutilizador, (void*) utilizador);
+ // pthread_create (&thm, NULL, (void*) &fecharfifoitem, (void*) item)
+
+  pthread_join(th, NULL);
+  pthread_join(thm, NULL);
+  pthread_mutex_destroy(&mutex);
+  pthread_mutex_destroy(&mutexm);
+
 }

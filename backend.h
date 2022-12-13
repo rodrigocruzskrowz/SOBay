@@ -2,11 +2,11 @@
 #define SOBay_BACKEND_H
 #include "utils.h"
 #include "users_lib.h"
+#include "frontend.h"
 
 char *FUSERS;
 char *FITEMS;
 char *FPROMOTERS;
-char *FINIT = "init.txt";
 
 int TEMPO;
 int PROX_ID;
@@ -21,6 +21,8 @@ struct Item{
     int tempo;
     char vendedor[MAX_SIZE];
     char licitador[MAX_SIZE];
+    User ut;
+    pthread_mutex_t *i;
 };
 
 typedef struct Promocao promocao;

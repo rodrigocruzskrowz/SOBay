@@ -11,6 +11,9 @@
 #include <sys/select.h>
 #include <fcntl.h>
 #include "stdlib.h"
+#include <sys/time.h>
+
+#include "frontend.h"
 
 #include <errno.h>
 
