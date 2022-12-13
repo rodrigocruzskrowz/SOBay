@@ -6,6 +6,7 @@
 char *FUSERS;
 char *FITEMS;
 char *FPROMOTERS;
+char *FINIT = "init.txt";
 
 int TEMPO;
 int PROX_ID;

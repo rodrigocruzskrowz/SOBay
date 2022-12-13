@@ -13,12 +13,38 @@ void stopReadPromotor(int sign){
     parar = 1;
 }
 void stopValidatingLogs(int sign){
-
     signal(SIGINT,SIG_DFL);
     parar = 1;
 }
 
+void initPlataforma(char nomeficheiro[]){
+
+}
+
 int main() {
+
+    int fd_init = open(FINIT, O_RDONLY);
+    if(fd_init == -1){
+        printf("\nFicheiro de inicialização não encontrado, a gerar novo ficheiro de inicialização...\n");
+        fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
+        char tempo[MAX_SIZE] = "1";
+        write(fd_init,tempo,strlen(tempo));
+        printf("Ficheiro de inicialização gerado!\n\n");
+    }
+    else{
+        char c[MAX_SIZE];
+        int tempo;
+        int nbytes;
+        while((nbytes = read(fd_init,&c,1)) > 0){
+            if(sscanf(c,"%d",&tempo) == 1){
+                TEMPO = tempo;
+                printf("TEMPO ATUAL: %d\n\n", TEMPO);
+            }
+
+            if(nbytes == 0)
+                break;
+        }
+    }
 
     int opc;
     int estado;
@@ -186,8 +212,8 @@ int main() {
                         execl(promotorList[0], promotorList[0], NULL);
                     }
 
-                    printf("[ERRO] Não consegui executar o promotor!\n");
-                    break;
+                    printf("[ERRO] Não foi possível executar o promotor. Verifique se o nome do ficheiro está correto. '%s'\n",promotorList[0]);
+                    exit(1);
                 }
 
                 close(canal[1]);
@@ -214,9 +240,6 @@ int main() {
                             }
                             else{
                                 s[cont] = '\0';
-//                                printf("%s",s);
-//                                memset(s,0,MAX_SIZE);
-//                                printf("\nESPAÇO//bN\n");
                                 cont = 0;
                                 switch (arg) {
                                     case 0:{
@@ -299,8 +322,8 @@ int main() {
                 //Verifica se a variavel de ambiente FITEMS existe
                 if(getenv("FITEMS") == NULL){
                     printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-                    FITEMS = "../items.txt";
-                    //exit(1);
+                    //FITEMS = "../items.txt";
+                    exit(1);
                 }
                 else{
                     FITEMS = getenv("FITEMS");
@@ -314,7 +337,7 @@ int main() {
 
             fd = open(FITEMS, O_RDONLY);
             if(fd==-1){
-                printf("\nFicheiro de items não encontrado!\n");
+                printf("\nFicheiro de items não encontrado! Não existem items listados para venda.\n");
                 break;
             }
             else{
@@ -341,8 +364,11 @@ int main() {
 
                             memset(str,0,MAX_SIZE);
                             cont = 0;
-                            if(nbytes == 0)
-                                break;
+
+                        }
+                        else{
+                            memset(str,0,MAX_SIZE);
+                            cont = 0;
                         }
 
                         if(nbytes == 0)
@@ -352,86 +378,6 @@ int main() {
                         str[cont++] = c;
                     }
                 }
-
-//                printf("\nInformação do ficheiro: \n");
-//                while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
-//                    //printf("%c",c);
-//                    if((c == ' ' && nbytes != 0) || (c == '\n' && nbytes != 0) || nbytes == 0){
-//                        str[cont++]='\0';
-//                        cont = 0;
-//                        switch (arg){
-//                            case 0:{
-//                                item[i].id = atoi(str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 1:{
-//                                strcpy(item[i].nome,str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 2:{
-//                                strcpy(item[i].categoria,str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 3:{
-//                                item[i].bid = atoi(str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 4:{
-//                                item[i].buyNow = atoi(str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 5:{
-//                                item[i].tempo = atoi(str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 6:{
-//                                strcpy(item[i].vendedor,str);
-//                                memset(str,0,MAX_SIZE);
-//                                break;
-//                            }
-//                            case 7:{
-//                                strcpy(item[i].licitador,str);
-//                                memset(str,0,MAX_SIZE);
-//                                arg = -1;
-//                                break;
-//                            }
-//                            default: {
-//                                printf("[ERRO] Fora dos limites de atributos.");
-//                                break;
-//                            }
-//                        }
-//                        arg++;
-//
-//                        if((c == '\n' && nbytes != 0) || nbytes == 0){
-//                            printf("\n:::ITEM %d:::\n",i+1);
-//                            printf("ID: %d\n", item[i].id);
-//                            printf("Item: %s\n", item[i].nome);
-//                            printf("Categoria: %s\n", item[i].categoria);
-//                            printf("Licitação: %d\n", item[i].bid);
-//                            printf("Compre já: %d\n", item[i].buyNow);
-//                            printf("Tempo de venda: %d\n", item[i].tempo);
-//                            printf("Vendedor: %s\n", item[i].vendedor);
-//                            printf("Licitador: %s\n", item[i].licitador);
-//
-//                            if(nbytes == 0)
-//                                break;
-//
-//                            if(i < MAX_ITEMS)
-//                                i++;
-//                            else
-//                                break;
-//                        }
-//                    }
-//                    else{
-//                        str[cont++] = c;
-//                    }
-//                }
             }
                 break;
             }
