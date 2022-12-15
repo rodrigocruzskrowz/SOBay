@@ -123,7 +123,8 @@ int main() {
         printf("[ERRO] %s\n", getLastErrorText());
     }
 
-
+    Item item_lista[MAX_ITEMS];
+    int nitems_lista = 0;
     int opc;
     int estado;
     do {
@@ -132,7 +133,8 @@ int main() {
         printf("2-Execução do promotor\n");
         printf("3-Utilizadores\n");
         printf("4-Items\n");
-        printf("5-Terminar\n");
+        printf("5-Coloca item à venda\n");
+        printf("0-Terminar\n");
         printf("Opção: ");
         scanf("%d", &opc);
         switch (opc) {
@@ -394,7 +396,6 @@ int main() {
                 int fd, cont = 0, arg = 0, nbytes, res, i = 0;
                 char str[MAX_SIZE];
                 char c;
-                Item item[MAX_ITEMS];
 
                 fd = open(FITEMS, O_RDONLY);
                 if(fd==-1){
@@ -407,16 +408,23 @@ int main() {
                         //printf("%c",c);
                         if(c == '\n' || nbytes == 0){
                             str[cont++]='\0';
-                            if(sscanf(str,"%d %s %s %d %d %d %s %s",&item[i].id,item[i].nome,item[i].categoria,&item[i].bid,&item[i].buyNow,&item[i].tempo,item[i].vendedor,item[i].licitador) == 8){
+                            if(sscanf(str,"%d %s %s %d %d %d %s %s",
+                                      &item_lista[i].id,item_lista[i].nome,item_lista[i].categoria,&item_lista[i].bid,&item_lista[i].buyNow,&item_lista[i].tempo,item_lista[i].vendedor,item_lista[i].licitador) == 8){
                                 printf("\n:::ITEM %d:::\n",i+1);
-                                printf("ID: %d\n", item[i].id);
-                                printf("Item: %s\n", item[i].nome);
-                                printf("Categoria: %s\n", item[i].categoria);
-                                printf("Licitação: %d\n", item[i].bid);
-                                printf("Compre já: %d\n", item[i].buyNow);
-                                printf("Tempo de venda: %d\n", item[i].tempo);
-                                printf("Vendedor: %s\n", item[i].vendedor);
-                                printf("Licitador: %s\n", item[i].licitador);
+                                printf("ID: %d\n", item_lista[i].id);
+                                printf("Item: %s\n", item_lista[i].nome);
+                                printf("Categoria: %s\n", item_lista[i].categoria);
+                                printf("Licitação: %d\n", item_lista[i].bid);
+                                printf("Compre já: %d\n", item_lista[i].buyNow);
+                                printf("Tempo de venda: %d\n", item_lista[i].tempo);
+                                printf("Vendedor: %s\n", item_lista[i].vendedor);
+                                printf("Licitador: %s\n", item_lista[i].licitador);
+
+                                nitems_lista++;
+                                //printf("nlista: %d\n",nitems_lista);
+                                PROX_ID = item_lista[i].id;
+                                PROX_ID++;
+                                //printf("prox_id: %d\n",PROX_ID);
 
                                 if(i < MAX_ITEMS)
                                     i++;
@@ -442,12 +450,62 @@ int main() {
                 }
                 break;
             }
+            case 5:{
+                //Lê dados do item
+                Item it;
+                int lido = read(fd_sv_fifo,&it,sizeof(Item));
+                if(lido == sizeof(Item)){
+                    printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s, Licitador: %s\n",
+                           it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
+
+                    //Coloca item à venda (adiciona à lista de items)
+                    item_lista[nitems_lista].id = PROX_ID;
+                    strcpy(item_lista[nitems_lista].nome, it.nome);
+                    strcpy(item_lista[nitems_lista].categoria, it.categoria);
+                    item_lista[nitems_lista].bid = it.bid;
+                    item_lista[nitems_lista].buyNow = it.buyNow;
+                    item_lista[nitems_lista].tempo = it.tempo;
+                    strcpy(item_lista[nitems_lista].vendedor, it.vendedor);
+                    strcpy(item_lista[nitems_lista].licitador, it.licitador);
+                    PROX_ID++;
+                    nitems_lista++;
+                }
+
+                printf(":::::LISTA DE ITEMS:::::");
+                for(int i=0; i<nitems_lista; i++){
+                    printf("\n:::ITEM %d:::\n",i+1);
+                    printf("ID: %d\n", item_lista[i].id);
+                    printf("Item: %s\n", item_lista[i].nome);
+                    printf("Categoria: %s\n", item_lista[i].categoria);
+                    printf("Licitação: %d\n", item_lista[i].bid);
+                    printf("Compre já: %d\n", item_lista[i].buyNow);
+                    printf("Tempo de venda: %d\n", item_lista[i].tempo);
+                    printf("Vendedor: %s\n", item_lista[i].vendedor);
+                    printf("Licitador: %s\n", item_lista[i].licitador);
+                }
+
+//                int itemsEnviados = 0;
+//                for(int i=0; i<nitems_lista; i++){
+//                    int n = write(fd_cli_fifo,&item_lista[i],sizeof(Item));
+//                    if(n == sizeof(Item)){
+//                        itemsEnviados++;
+//                        //printf("[INFO] Enviei %d %s %s %d %d %d %s %s\n\n",it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
+//                    }
+//                }
+//                printf("Enviei %d items.",itemsEnviados);
+
+                break;
+            }
+            case 0:{
+
+                break;
+            }
             default:
                 printf("Opção desconhecida.");
                 break;
         }
         printf("\n\n\n");
-    }while(opc!=5);
+    }while(opc!=0);
 
     close(fd_cli_fifo);
     close(fd_sv_fifo);

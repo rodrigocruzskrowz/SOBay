@@ -178,9 +178,11 @@ int main(int argc, char *argv[])
 
                         //Envia Item para o backend
                         it.id = 0; //Força o envio do ID a 0 de forma a quando receber verificar se mudou
+                        strcpy(it.vendedor,user.nome);
+                        strcpy(it.licitador,"-");
                         int n = write(fd_bknd_fifo,&it,sizeof(Item));
                         if(n == sizeof(Item)){
-                            printf("[INFO] Enviei %s %s %d %d %d\n\n",it.nome,it.categoria,it.bid,it.buyNow,it.tempo);
+                            printf("[INFO] Enviei %d %s %s %d %d %d %s %s\n\n",it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
                         }
 
                         //Recebe confirmação do registo do Item
@@ -190,6 +192,9 @@ int main(int argc, char *argv[])
                             if(it.id == 0){
                                 printf("[ERRO] Erro ao registar o item. Por favor tente mais tarde.\n\n");
                                 exit(1);
+                            }
+                            else{
+                                printf("[INFO] O artigo foi adicionado ao leilão!\n\n");
                             }
                         }
                     }
