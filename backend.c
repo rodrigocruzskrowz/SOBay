@@ -1,6 +1,4 @@
 #include "backend.h"
-#include "frontend.h"
-#include "utils.h"
 
 int parar = 0;
 int pidf;
@@ -17,28 +15,24 @@ void stopValidatingLogs(int sign){
     parar = 1;
 }
 
-void initPlataforma(char nomeficheiro[]){
-
-}
-
-int main() {
-
+void initPlataforma(){
     int fd_init = open(FINIT, O_RDONLY);
     if(fd_init == -1){
         printf("\nFicheiro de inicialização não encontrado, a gerar novo ficheiro de inicialização...\n");
         fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
-        char tempo[MAX_SIZE] = "1";
-        write(fd_init,tempo,strlen(tempo));
+        char initFile[MAX_SIZE] = "1 1";
+        write(fd_init,initFile,strlen(initFile));
         printf("Ficheiro de inicialização gerado!\n\n");
     }
     else{
         char c[MAX_SIZE];
-        int tempo;
+        int tempo, proxID;
         int nbytes;
         while((nbytes = read(fd_init,&c,1)) > 0){
-            if(sscanf(c,"%d",&tempo) == 1){
+            if(sscanf(c,"%d %d",&tempo,&proxID) == 2){
                 TEMPO = tempo;
-                printf("TEMPO ATUAL: %d\n\n", TEMPO);
+                PROX_ID = proxID;
+                printf("TEMPO ATUAL: %d\nPRÓXIMO ID: %d\n\n", TEMPO, PROX_ID);
             }
 
             if(nbytes == 0)
@@ -46,18 +40,101 @@ int main() {
         }
     }
 
+    close(fd_init);
+}
+
+int main() {
+
+    initPlataforma();
+
+    int fd_sv_fifo;
+    int fd_cli_fifo;
+    char res_cli_fifo[MAX_SIZE_FIFO];
+    int dados;
+    User user;
+
+    //Verifica se backend já está em execução
+    if(access(BKND_FIFO,F_OK) == 0){
+        printf("O BACKEND já está em execução!\n");
+        exit(1);
+    }
+
+    //Verifica se a variavel de ambiente FUSERS existe
+    if(getenv("FUSERS") == NULL){
+        printf("A variável de ambiente 'FUSERS' não foi definida.\n");
+//      FUSERS = "../users.txt";
+        exit(1);
+    }
+    else{
+        FUSERS = getenv("FUSERS");
+        printf("\nVariável de ambiente 'FUSERS' = %s\n",FUSERS);
+    }
+
+    //Verifica se a variavel de ambiente FPROMOTERS existe
+    if(getenv("FPROMOTERS") == NULL){
+        printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
+        exit(1);
+    }
+    else{
+        FPROMOTERS = getenv("FPROMOTERS");
+        printf("\nVariável de ambiente 'FPROMOTERS' = %s\n",FPROMOTERS);
+    }
+
+    //Verifica se a variavel de ambiente FUSERS existe
+    if(getenv("FUSERS") == NULL){
+        printf("A variável de ambiente 'FUSERS' não foi definida.\n");
+        exit(1);
+    }
+    else{
+        FUSERS = getenv("FUSERS");
+        printf("\nVariável de ambiente 'FUSERS' = %s\n",FUSERS);
+    }
+
+    //Acede ao ficheiro de utilizadores
+    int nUtilizadores = loadUsersFile(FUSERS);
+    printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
+
+    //Cria BACKEND FIFO
+    mkfifo(BKND_FIFO,0600);
+    fd_sv_fifo = open(BKND_FIFO,O_RDWR);
+
+    //Lê dados de login enviados pelo frontend
+    dados = read(fd_sv_fifo,&user,sizeof(User));
+    if(dados == sizeof(User)){
+        printf("Logs recebidos: %s %s\n",user.nome,user.password);
+    }
+
+    //Valida dados de login
+    user.valid = isUserValid(user.nome,user.password);
+    if(user.valid == 0){
+        sprintf(res_cli_fifo,FRND_FIFO,user.pid);
+        fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
+        write(fd_cli_fifo,&user,sizeof(User));
+        close(fd_cli_fifo);
+    }
+    else if(user.valid == 1){
+        user.saldo = getUserBalance(user.nome);
+        sprintf(res_cli_fifo,FRND_FIFO,user.pid);
+        fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
+        write(fd_cli_fifo,&user,sizeof(User));
+        close(fd_cli_fifo);
+    }
+    else{
+        printf("[ERRO] %s\n", getLastErrorText());
+    }
+
+
     int opc;
     int estado;
     do {
-    printf("Deseja testar qual opção?\n");
-    printf("1-Comandos\n");
-    printf("2-Execução do promotor\n");
-    printf("3-Utilizadores\n");
-    printf("4-Items\n");
-    printf("5-Verificar login\n");
-    printf("6-Terminar\n");
-    printf("Opção: ");
-    scanf("%d", &opc);
+        printf("\nDeseja testar qual opção?\n");
+        printf("1-Comandos\n");
+        printf("2-Execução do promotor\n");
+        printf("3-Utilizadores\n");
+        printf("4-Items\n");
+        printf("5-Terminar\n");
+        printf("Opção: ");
+        scanf("%d", &opc);
         switch (opc) {
             case 1: {
                 //Espera comando
@@ -156,15 +233,7 @@ int main() {
             }
 
             case 2: {
-                //Verifica se a variavel de ambiente FPROMOTERS existe
-                if(getenv("FPROMOTERS") == NULL){
-                    printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
-                    exit(1);
-                }
-                else{
-                    FPROMOTERS = getenv("FPROMOTERS");
-                    printf("\nVariável de ambiente 'FPROMOTERS' = %s\n\n",FPROMOTERS);
-                }
+
 
                 int fd, cont = 0, arg = 0, nbytes, i = 0, j = 0, ic = 0;
                 char str[MAX_SIZE], c;
@@ -220,8 +289,8 @@ int main() {
                 pidf = res;
                 parar = 0;
                 struct sigaction sa;
-                    sa.sa_handler = stopReadPromotor;
-                    sa.sa_flags = SA_SIGINFO;
+                sa.sa_handler = stopReadPromotor;
+                sa.sa_flags = SA_SIGINFO;
                 sigaction(SIGINT,&sa,NULL);
 
                 promocao promo[MAX_SIZE];
@@ -279,15 +348,7 @@ int main() {
                 break;
             }
             case 3: {
-                //Verifica se a variavel de ambiente FUSERS existe
-                if(getenv("FUSERS") == NULL){
-                    printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-                    exit(1);
-                }
-                else{
-                    FUSERS = getenv("FUSERS");
-                    printf("\nVariável de ambiente 'FUSERS' = %s\n\n",FUSERS);
-                }
+
 
                 int nUtilizadores = loadUsersFile(FUSERS);
                 printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
@@ -333,121 +394,53 @@ int main() {
                 int fd, cont = 0, arg = 0, nbytes, res, i = 0;
                 char str[MAX_SIZE];
                 char c;
-                item item[MAX_ITEMS];
+                Item item[MAX_ITEMS];
 
-            fd = open(FITEMS, O_RDONLY);
-            if(fd==-1){
-                printf("\nFicheiro de items não encontrado! Não existem items listados para venda.\n");
-                break;
-            }
-            else{
-                printf("\nInformação do ficheiro: \n");
-                while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
-                    //printf("%c",c);
-                    if(c == '\n' || nbytes == 0){
-                        str[cont++]='\0';
-                        if(sscanf(str,"%d %s %s %d %d %d %s %s",&item[i].id,item[i].nome,item[i].categoria,&item[i].bid,&item[i].buyNow,&item[i].tempo,item[i].vendedor,item[i].licitador) == 8){
-                            printf("\n:::ITEM %d:::\n",i+1);
-                            printf("ID: %d\n", item[i].id);
-                            printf("Item: %s\n", item[i].nome);
-                            printf("Categoria: %s\n", item[i].categoria);
-                            printf("Licitação: %d\n", item[i].bid);
-                            printf("Compre já: %d\n", item[i].buyNow);
-                            printf("Tempo de venda: %d\n", item[i].tempo);
-                            printf("Vendedor: %s\n", item[i].vendedor);
-                            printf("Licitador: %s\n", item[i].licitador);
-
-                            if(i < MAX_ITEMS)
-                                i++;
-                            else
-                                break;
-
-                            memset(str,0,MAX_SIZE);
-                            cont = 0;
-
-                        }
-                        else{
-                            memset(str,0,MAX_SIZE);
-                            cont = 0;
-                        }
-
-                        if(nbytes == 0)
-                            break;
-                    }
-                    else{
-                        str[cont++] = c;
-                    }
-                }
-            }
-                break;
-            }
-            case 5:{
-                int fd_sv_fifo;
-                int fd_cli_fifo;
-                char res_cli_fifo[MAX_SIZE_FIFO];
-                int dados;
-                User user;
-
-                //Verifica se a variavel de ambiente FUSERS existe
-                if(getenv("FUSERS") == NULL){
-                    printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-                    exit(1);
-//                    FUSERS = "../users.txt";
+                fd = open(FITEMS, O_RDONLY);
+                if(fd==-1){
+                    printf("\nFicheiro de items não encontrado! Não existem items listados para venda.\n");
+                    break;
                 }
                 else{
-                    FUSERS = getenv("FUSERS");
-                    printf("\nVariável de ambiente 'FUSERS' = %s\n\n",FUSERS);
-                }
+                    printf("\nInformação do ficheiro: \n");
+                    while((nbytes = read(fd,&c,1)) >= 0){ //le byte por byte
+                        //printf("%c",c);
+                        if(c == '\n' || nbytes == 0){
+                            str[cont++]='\0';
+                            if(sscanf(str,"%d %s %s %d %d %d %s %s",&item[i].id,item[i].nome,item[i].categoria,&item[i].bid,&item[i].buyNow,&item[i].tempo,item[i].vendedor,item[i].licitador) == 8){
+                                printf("\n:::ITEM %d:::\n",i+1);
+                                printf("ID: %d\n", item[i].id);
+                                printf("Item: %s\n", item[i].nome);
+                                printf("Categoria: %s\n", item[i].categoria);
+                                printf("Licitação: %d\n", item[i].bid);
+                                printf("Compre já: %d\n", item[i].buyNow);
+                                printf("Tempo de venda: %d\n", item[i].tempo);
+                                printf("Vendedor: %s\n", item[i].vendedor);
+                                printf("Licitador: %s\n", item[i].licitador);
 
-                int nUtilizadores = loadUsersFile(FUSERS);
-                printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
+                                if(i < MAX_ITEMS)
+                                    i++;
+                                else
+                                    break;
 
-                if(access(BKND_FIFO,F_OK) == 0){
-                    printf("O BACKEND já está em execução!\n");
-                    exit(1);
-                }
-                mkfifo(BKND_FIFO,0600);
-                fd_sv_fifo = open(BKND_FIFO,O_RDWR);
-                struct sigaction sa;
-                    sa.sa_handler = stopValidatingLogs;
-                    sa.sa_flags = SA_SIGINFO;
-                sigaction(SIGINT,&sa,NULL);
+                                memset(str,0,MAX_SIZE);
+                                cont = 0;
 
-                parar = 0;
-                while(parar == 0){
-                    dados = read(fd_sv_fifo,&user,sizeof(User));
+                            }
+                            else{
+                                memset(str,0,MAX_SIZE);
+                                cont = 0;
+                            }
 
-                    if(dados == sizeof(User)){
-                        printf("Logs recebidos: %s %s\n",user.nome,user.password);
-                    }
-
-                    user.valid = isUserValid(user.nome,user.password);
-                    if(user.valid == 0){
-                        sprintf(res_cli_fifo,FRND_FIFO,user.pid);
-                        fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
-                        write(fd_cli_fifo,&user,sizeof(User));
-                        close(fd_cli_fifo);
-                    }
-                    else if(user.valid == 1){
-                        user.saldo = getUserBalance(user.nome);
-                        sprintf(res_cli_fifo,FRND_FIFO,user.pid);
-                        fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
-                        write(fd_cli_fifo,&user,sizeof(User));
-                        close(fd_cli_fifo);
-                    }
-                    else{
-                        printf("[ERRO] %s\n", getLastErrorText());
+                            if(nbytes == 0)
+                                break;
+                        }
+                        else{
+                            str[cont++] = c;
+                        }
                     }
                 }
-
-                close(fd_cli_fifo);
-                close(fd_sv_fifo);
-                unlink(res_cli_fifo);
-
                 break;
-            }
-            case 6:{
-                return 0;
             }
             default:
                 printf("Opção desconhecida.");
@@ -455,4 +448,9 @@ int main() {
         }
         printf("\n\n\n");
     }while(opc!=5);
+
+    close(fd_cli_fifo);
+    close(fd_sv_fifo);
+    unlink(res_cli_fifo); //Fecha canal do cliente
+    unlink(BKND_FIFO); //Fecha canal do servidor
 }

@@ -19,12 +19,12 @@ int main(int argc, char *argv[])
 
         //Verifica se o backend está em execução
         if(access(BKND_FIFO, F_OK) != 0){
-            printf("O BACKEND não está em execução.\n");
+            printf("[ERRO] O BACKEND não está em execução.\n");
             exit(1);
         }
         fd_bknd_fifo = open(BKND_FIFO,O_WRONLY);
         if(fd_bknd_fifo == -1){
-            printf("Não foi possível abrir o canal de comunicação com o BACKEND.\n");
+            printf("[ERRO] Não foi possível abrir o canal de comunicação com o BACKEND.\n");
             exit(1);
         }
 
@@ -35,14 +35,14 @@ int main(int argc, char *argv[])
             mkfifo(cli_fifo,0600);
         fd_cli_fifo = open(cli_fifo,O_RDWR);
         if(fd_cli_fifo == -1){
-            printf("Não foi possível criar o canal de comunicação com o BACKEND.\n");
+            printf("[ERRO] Não foi possível criar o canal de comunicação com o BACKEND.\n");
             exit(1);
         }
 
         //Envia login para o BACKEND
         int n = write(fd_bknd_fifo,&user,sizeof(User));
 //        if(n == sizeof(User)){
-//            printf("Enviei %s %s %d\n",user.nome, user.password,user.pid);
+//            printf("[INFO] Enviei %s %s %d\n",user.nome, user.password,user.pid);
 //        }
 
         //Recebe validação do login
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
                 printf("Olá, %s!\nO seu saldo é de: %d\n\n",user.nome,user.saldo);
             }
             else{
-                printf("Credênciais erradas. Acesso negado!\n\n");
+                printf("[INFO] Credênciais erradas. Acesso negado!\n\n");
                 close(fd_bknd_fifo);
                 close(fd_cli_fifo);
                 unlink(cli_fifo);
@@ -115,10 +115,13 @@ int main(int argc, char *argv[])
 
                 if(strcmp(comando[0],"sell")==0){
                     if(c==6) {
+                        Item it;
                         int isValid = 1;
-                        //Verificar se o item existe
+                        //Verificar se o Item existe
+                        strcpy(it.nome,comando[1]);
 
                         //Verificar se a categoria existe
+                        strcpy(it.categoria,comando[2]);
 
                         //Verificar se preço é inteiro
                         j=0;
@@ -135,6 +138,8 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
+                        it.bid = atoi(comando[3]);
+
                         //Verificar se buyNow é inteiro
                         j=0;
                         while(comando[4][j]!='\0'){
@@ -148,9 +153,9 @@ int main(int argc, char *argv[])
                         }
 
                         if(isValid == 0)
-                            continue;close(fd_bknd_fifo);
-                close(fd_cli_fifo);
-                unlink(cli_fifo);
+                            continue;
+
+                        it.buyNow = atoi(comando[4]);
 
                         //Verificar se duração é inteiro
                         j=0;
@@ -167,19 +172,55 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
-                        printf("Comando válido!\n");
+                        it.tempo = atoi(comando[5]);
 
+//                        printf("Comando válido!\n");
+
+                        //Envia Item para o backend
+                        it.id = 0; //Força o envio do ID a 0 de forma a quando receber verificar se mudou
+                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
+                        if(n == sizeof(Item)){
+                            printf("[INFO] Enviei %s %s %d %d %d\n\n",it.nome,it.categoria,it.bid,it.buyNow,it.tempo);
+                        }
+
+                        //Recebe confirmação do registo do Item
+                        int resposta;
+                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
+                        if(resposta == sizeof(Item)){
+                            if(it.id == 0){
+                                printf("[ERRO] Erro ao registar o item. Por favor tente mais tarde.\n\n");
+                                exit(1);
+                            }
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
-                        printf("Formato esperado:\n\tsell <nome-item> <categoria> <preço-base> <preço-compre-já> <duração>\n\n");
+                        printf("Formato esperado:\n\tsell <nome-Item> <categoria> <preço-base> <preço-compre-já> <duração>\n\n");
                     }
                 }
 
                 else if(strcmp(comando[0],"list")==0){
                     if(c==1) {
+                        Item it;
+                        User ut;
                         //Listar items
-                        printf("Comando válido!\n");
+//                        printf("Comando válido!\n");
+                        strcpy(ut.word,"LISTAR");
+
+                        //Envia pedido para o backend
+                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
+                        if(n == sizeof(Item)){
+                            printf("[INFO] Pedi para '%s' items.\n\n",ut.word);
+                        }
+
+                        //Recebe lista de items
+                        int resposta;
+                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
+                        if(resposta == sizeof(Item)){
+                            if(strcmp(ut.word,"ENVIADO/ERRO")==0){
+                                printf("[INFO] AINDA NÃO IMPLEMENTADO!!!");
+                            }
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -189,10 +230,27 @@ int main(int argc, char *argv[])
 
                 else if(strcmp(comando[0],"licat")==0){
                     if(c==2) {
-                        //Verificar se categoria existe
-
+                        Item it;
+                        User ut;
                         //Listar Items da categoria
-                        printf("Comando válido!\n");
+//                        printf("Comando válido!\n");
+
+                        strcpy(it.categoria,comando[1]);
+
+                        //Envia pedido para o backend
+                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
+                        if(n == sizeof(Item)){
+                            printf("[INFO] Pedi os items da categoria: '%s'\n\n",it.categoria);
+                        }
+
+                        //Recebe lista de items
+                        int resposta;
+                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
+                        if(resposta == sizeof(Item)){
+                            if(strcmp(ut.word,"ENVIADO/ERRO/CATEGORIA NAO EXISTE")==0){
+                                printf("[INFO] AINDA NÃO IMPLEMENTADO!!!");
+                            }
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -202,10 +260,27 @@ int main(int argc, char *argv[])
 
                 else if(strcmp(comando[0],"lisel")==0){
                     if(c==2) {
-                        //Verificar se vendedor existe
-
+                        Item it;
+                        User ut;
                         //Listar Items do vendedor
-                        printf("Comando válido!\n");
+//                        printf("Comando válido!\n");
+
+                        strcpy(it.vendedor,comando[1]);
+
+                        //Envia pedido para o backend
+                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
+                        if(n == sizeof(Item)){
+                            printf("[INFO] Pedi os items do vendedor: '%s'\n\n",it.vendedor);
+                        }
+
+                        //Recebe lista de items
+                        int resposta;
+                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
+                        if(resposta == sizeof(Item)){
+                            if(strcmp(ut.word,"ENVIADO/ERRO/VENDEDOR NAO EXISTE")==0){
+                                printf("[INFO] AINDA NÃO IMPLEMENTADO!!!");
+                            }
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -215,6 +290,8 @@ int main(int argc, char *argv[])
 
                 else if(strcmp(comando[0],"lival")==0){
                     if(c==2) {
+                        Item it;
+                        User ut;
                         int isValid = 1;
                         //Verificar se preço é inteiro
                         j=0;
@@ -231,8 +308,25 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
+                        it.bid = atoi(comando[1]);
+
                         //Listar items até ao preço indicado
-                        printf("Comando válido!\n");
+//                        printf("Comando válido!\n");
+
+                        //Envia pedido para o backend
+                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
+                        if(n == sizeof(Item)){
+                            printf("[INFO] Pedi os items ate '%d'\n\n",it.bid);
+                        }
+
+                        //Recebe lista de items
+                        int resposta;
+                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
+                        if(resposta == sizeof(Item)){
+                            if(strcmp(ut.word,"ENVIADO/ERRO/NENHUM VALOR INFERIOR")==0){
+                                printf("[INFO] AINDA NÃO IMPLEMENTADO!!!");
+                            }
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -242,6 +336,8 @@ int main(int argc, char *argv[])
 
                 else if(strcmp(comando[0],"litime")==0){
                     if(c==2) {
+                        Item it;
+                        User ut;
                         int isValid = 1;
                         //Verificar se tempo é inteiro
                         j=0;
@@ -258,8 +354,25 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
+                        strcpy(ut.word,"HORA");
+
                         //Listar items com prazo até tempo indicado
-                        printf("Comando válido!\n");
+//                        printf("Comando válido!\n");
+
+                        //Envia pedido para o backend
+                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
+                        if(n == sizeof(Item)){
+                            printf("[INFO] Pedi a '%s' atual\n\n",ut.word);
+                        }
+
+                        //Recebe lista de items
+                        int resposta;
+                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
+                        if(resposta == sizeof(Item)){
+                            if(strcmp(ut.word,"ENVIADO/ERRO/NENHUM VALOR INFERIOR")==0){
+                                printf("[INFO] AINDA NÃO IMPLEMENTADO!!!");
+                            }
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -311,7 +424,7 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
-                        //Licitar item
+                        //Licitar Item
                         printf("Comando válido!\n");
                     }
                     else {

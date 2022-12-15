@@ -2,6 +2,8 @@
 #define SOBay_BACKEND_H
 #include "utils.h"
 #include "users_lib.h"
+#include "utils.h"
+#include "struct.h"
 
 char *FUSERS;
 char *FITEMS;
@@ -11,23 +13,12 @@ char *FINIT = "init.txt";
 int TEMPO;
 int PROX_ID;
 
-typedef struct Item item;
-struct Item{
-    int id;
-    char nome[MAX_SIZE];
-    char categoria[MAX_SIZE];
-    int bid;
-    int buyNow;
-    int tempo;
-    char vendedor[MAX_SIZE];
-    char licitador[MAX_SIZE];
+typedef struct ThreadData TData;
+struct ThreadData{
+
+    pthread_mutex_t *ptrinco;
 };
 
-typedef struct Promocao promocao;
-struct Promocao{
-    char categoria[MAX_SIZE];
-    int promo;
-    int tempo;
-};
+void initPlataforma();
 
 #endif //SOBay_BACKEND_H

@@ -10,7 +10,8 @@
 #include <sys/wait.h>
 #include <sys/select.h>
 #include <fcntl.h>
-#include "stdlib.h"
+#include <stdlib.h>
+#include <pthread.h>
 
 #include <errno.h>
 
