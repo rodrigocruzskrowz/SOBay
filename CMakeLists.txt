@@ -12,7 +12,7 @@ add_executable(frontend
         utils.c
         users_lib.h
         users_lib.o
-        )
+        struct.h)
 
 add_executable(backend
         backend.h
@@ -23,4 +23,4 @@ add_executable(backend
         utils.c
         users_lib.h
         users_lib.o
-        )
+        struct.h)

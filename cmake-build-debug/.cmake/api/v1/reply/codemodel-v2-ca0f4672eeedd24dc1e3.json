@@ -41,14 +41,14 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "backend::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-backend-Debug-67b373bd573fbbe63f88.json",
+					"jsonFile" : "target-backend-Debug-b95f7cd9e321d3ab8721.json",
 					"name" : "backend",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 0,
 					"id" : "frontend::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-frontend-Debug-2814718e5c501bc49654.json",
+					"jsonFile" : "target-frontend-Debug-22f04acc9df22742a2d5.json",
 					"name" : "frontend",
 					"projectIndex" : 0
 				}
