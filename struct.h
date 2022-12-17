@@ -9,7 +9,6 @@ struct Utilizador{
     int saldo;
     int valid;
     int pid;
-    char word[MAX_SIZE];
 };
 
 typedef struct Item Item;
@@ -29,6 +28,15 @@ struct Promocao{
     char categoria[MAX_SIZE];
     int promo;
     int tempo;
+};
+
+typedef struct Cliente_Administrador CA;
+struct Cliente_Administrador{
+    int pid;
+    char word[MAX_SIZE];
+    char secWord[MAX_SIZE];
+    int number;
+    int secNumber;
 };
 
 #endif //SOBAY_STRUCT_H

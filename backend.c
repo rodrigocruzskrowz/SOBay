@@ -28,7 +28,7 @@ void initPlataforma(){
         char c[MAX_SIZE];
         int tempo, proxID;
         int nbytes;
-        while((nbytes = read(fd_init,&c,1)) > 0){
+        while((nbytes = read(fd_init,&c,sizeof(c)-1)) > 0){
             if(sscanf(c,"%d %d",&tempo,&proxID) == 2){
                 TEMPO = tempo;
                 PROX_ID = proxID;
@@ -110,14 +110,12 @@ int main() {
         sprintf(res_cli_fifo,FRND_FIFO,user.pid);
         fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
         write(fd_cli_fifo,&user,sizeof(User));
-        close(fd_cli_fifo);
     }
     else if(user.valid == 1){
         user.saldo = getUserBalance(user.nome);
         sprintf(res_cli_fifo,FRND_FIFO,user.pid);
         fd_cli_fifo = open(res_cli_fifo,O_WRONLY);
         write(fd_cli_fifo,&user,sizeof(User));
-        close(fd_cli_fifo);
     }
     else{
         printf("[ERRO] %s\n", getLastErrorText());
@@ -133,7 +131,8 @@ int main() {
         printf("2-Execução do promotor\n");
         printf("3-Utilizadores\n");
         printf("4-Items\n");
-        printf("5-Coloca item à venda\n");
+        printf("5-Responde a comandos\n");
+        printf("6-Lista de items\n");
         printf("0-Terminar\n");
         printf("Opção: ");
         scanf("%d", &opc);
@@ -451,28 +450,325 @@ int main() {
                 break;
             }
             case 5:{
-                //Lê dados do item
+                CA comm;
                 Item it;
-                int lido = read(fd_sv_fifo,&it,sizeof(Item));
-                if(lido == sizeof(Item)){
-                    printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s, Licitador: %s\n",
-                           it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
+                int lido = read(fd_sv_fifo,&comm,sizeof(CA));
+                if(lido == sizeof(CA)){
+                    if(strcmp(comm.word,"CRIAR")==0){
+                        //Lê dados do item
+                        Item it;
+                        int lido = read(fd_sv_fifo,&it,sizeof(Item));
+                        if(lido == sizeof(Item)){
+                            printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s, Licitador: %s\n",
+                                   it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
 
-                    //Coloca item à venda (adiciona à lista de items)
-                    item_lista[nitems_lista].id = PROX_ID;
-                    strcpy(item_lista[nitems_lista].nome, it.nome);
-                    strcpy(item_lista[nitems_lista].categoria, it.categoria);
-                    item_lista[nitems_lista].bid = it.bid;
-                    item_lista[nitems_lista].buyNow = it.buyNow;
-                    item_lista[nitems_lista].tempo = it.tempo;
-                    strcpy(item_lista[nitems_lista].vendedor, it.vendedor);
-                    strcpy(item_lista[nitems_lista].licitador, it.licitador);
-                    PROX_ID++;
-                    nitems_lista++;
+                            //Coloca item à venda (adiciona à lista de items)
+                            item_lista[nitems_lista].id = PROX_ID;
+                            strcpy(item_lista[nitems_lista].nome, it.nome);
+                            strcpy(item_lista[nitems_lista].categoria, it.categoria);
+                            item_lista[nitems_lista].bid = it.bid;
+                            item_lista[nitems_lista].buyNow = it.buyNow;
+                            item_lista[nitems_lista].tempo = it.tempo;
+                            strcpy(item_lista[nitems_lista].vendedor, it.vendedor);
+                            strcpy(item_lista[nitems_lista].licitador, it.licitador);
+                            PROX_ID++;
+                            nitems_lista++;
+
+                            CA comm;
+                            strcpy(comm.word,"INSERIDO");
+                            comm.number = nitems_lista;
+                            comm.secNumber = item_lista[nitems_lista-1].id;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+
+                        printf(":::::LISTA DE ITEMS:::::");
+                        for(int i=0; i<nitems_lista; i++){
+                            printf("\n:::ITEM %d:::\n",i+1);
+                            printf("ID: %d\n", item_lista[i].id);
+                            printf("Item: %s\n", item_lista[i].nome);
+                            printf("Categoria: %s\n", item_lista[i].categoria);
+                            printf("Licitação: %d\n", item_lista[i].bid);
+                            printf("Compre já: %d\n", item_lista[i].buyNow);
+                            printf("Tempo de venda: %d\n", item_lista[i].tempo);
+                            printf("Vendedor: %s\n", item_lista[i].vendedor);
+                            printf("Licitador: %s\n", item_lista[i].licitador);
+                        }
+                    }
+
+                    if(strcmp(comm.word,"LISTAR")==0){
+                        //Enviar sucesso na receção do comando
+                        strcpy(comm.word,"ENVIADO");
+                        comm.number = nitems_lista;
+                        write(fd_cli_fifo,&comm,sizeof(CA));
+
+                        //Enviar lista de items
+                        int itemsEnviados = 0;
+                        for(int i=0; i<nitems_lista; i++){
+                            int n = write(fd_cli_fifo,&item_lista[i],sizeof(Item));
+                            if(n == sizeof(Item)){
+                                itemsEnviados++;
+                                //printf("[INFO] Enviei %d %s %s %d %d %d %s %s\n\n",it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
+                            }
+                        }
+                        printf("Enviei %d items.\n",itemsEnviados);
+                    }
+
+                    if(strcmp(comm.word,"LISTCAT")==0){
+                        //Verifica se existem items com a categoria recebida
+                        Item it_cat_list[MAX_ITEMS];
+                        int itemsAEnviar = 0;
+                        for(int i=0;i<nitems_lista;i++){
+                            if(strcmp(item_lista[i].categoria,comm.secWord)==0){
+                                it_cat_list[itemsAEnviar++] = item_lista[i];
+                            }
+                        }
+
+                        if(itemsAEnviar > 0){
+                            //Enviar sucesso na receção do comando
+                            strcpy(comm.word,"ENVCAT");
+                            comm.number = itemsAEnviar;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+
+                            //Enviar items da categoria recebida
+                            for(int i=0;i<itemsAEnviar;i++){
+                                write(fd_cli_fifo,&it_cat_list[i],sizeof(Item));
+                            }
+                            printf("Enviei %d items.\n",itemsAEnviar);
+                        }
+                        else{
+                            //Enviar erro (nenhum item a listar)
+                            strcpy(comm.word,"ENVCAT");
+                            comm.number = 0;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+                    }
+
+                    if(strcmp(comm.word,"LISTSEL")==0){
+                        //Verifica se existem items do vendedor recebida
+                        Item it_sel_list[MAX_ITEMS];
+                        int itemsAEnviar = 0;
+                        for(int i=0;i<nitems_lista;i++){
+                            if(strcmp(item_lista[i].vendedor,comm.secWord)==0){
+                                it_sel_list[itemsAEnviar++] = item_lista[i];
+                            }
+                        }
+
+                        if(itemsAEnviar > 0){
+                            //Enviar sucesso na receção do comando
+                            strcpy(comm.word,"ENVSEL");
+                            comm.number = itemsAEnviar;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+
+                            //Enviar items da categoria recebida
+                            for(int i=0;i<itemsAEnviar;i++){
+                                write(fd_cli_fifo,&it_sel_list[i],sizeof(Item));
+                            }
+                            printf("Enviei %d items.\n",itemsAEnviar);
+                        }
+                        else{
+                            //Enviar erro (nenhum item a listar)
+                            strcpy(comm.word,"ENVSEL");
+                            comm.number = 0;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+                    }
+
+                    if(strcmp(comm.word,"LISTVAL")==0){
+                        //Verifica se existem items ate ao valor recebido
+                        Item it_val_list[MAX_ITEMS];
+                        int itemsAEnviar = 0;
+                        for(int i=0;i<nitems_lista;i++){
+                            if(item_lista[i].bid <= comm.number){
+                                it_val_list[itemsAEnviar++] = item_lista[i];
+                            }
+                        }
+
+                        if(itemsAEnviar > 0){
+                            //Enviar sucesso na receção do comando
+                            strcpy(comm.word,"ENVVAL");
+                            comm.number = itemsAEnviar;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+
+                            //Enviar items da categoria recebida
+                            for(int i=0;i<itemsAEnviar;i++){
+                                write(fd_cli_fifo,&it_val_list[i],sizeof(Item));
+                            }
+                            printf("Enviei %d items.\n",itemsAEnviar);
+                        }
+                        else{
+                            //Enviar erro (nenhum item a listar)
+                            strcpy(comm.word,"ENVVAL");
+                            comm.number = 0;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+                    }
+
+                    if(strcmp(comm.word,"LISTIM")==0){
+                        //Verifica se existem items ate ao valor recebido
+                        Item it_tim_list[MAX_ITEMS];
+                        int itemsAEnviar = 0;
+                        for(int i=0;i<nitems_lista;i++){
+                            if((TEMPO + item_lista[i].tempo) >= comm.number){
+                                it_tim_list[itemsAEnviar++] = item_lista[i];
+                            }
+                        }
+
+                        if(itemsAEnviar > 0){
+                            //Enviar sucesso na receção do comando
+                            strcpy(comm.word,"ENVTIM");
+                            comm.number = itemsAEnviar;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+
+                            //Enviar items da categoria recebida
+                            for(int i=0;i<itemsAEnviar;i++){
+                                write(fd_cli_fifo,&it_tim_list[i],sizeof(Item));
+                            }
+                            printf("Enviei %d items.\n",itemsAEnviar);
+                        }
+                        else{
+                            //Enviar erro (nenhum item a listar)
+                            strcpy(comm.word,"ENVTIM");
+                            comm.number = 0;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+                    }
+
+                    if(strcmp(comm.word,"TIME")==0){
+                        //Enviar tempo atual
+                        strcpy(comm.word,"ENVTIME");
+                        comm.number = TEMPO;
+                        write(fd_cli_fifo,&comm,sizeof(CA));
+                    }
+
+                    if(strcmp(comm.word,"BUY")==0){
+                        //word-IDENTIFICATION WORD; secWord-USERNAME; number-ITEM ID; secNumber-VALOR
+                        int encontrou = 0;
+                        int compra = 0;
+                        int novoSaldo;
+
+                        for(int i=0; i<nitems_lista;i++){
+
+                            //Reorganiza lista de items (em caso de compra do item)
+                            if(compra == 1){
+                                item_lista[i-1] = item_lista[i];
+                                continue;
+                            }
+
+                            if(item_lista[i].id == comm.number){
+                                encontrou = 1;
+                                if(item_lista[i].buyNow != 0 && item_lista[i].buyNow <= comm.secNumber){
+                                    //Compra
+                                    //Verifica se user que licitou tem saldo suficiente
+                                   int saldo = getUserBalance(comm.secWord);
+                                   if(saldo >= comm.secNumber){
+                                       //Aprova compra
+                                       novoSaldo = (saldo - comm.secNumber);
+                                       updateUserBalance(comm.secWord,novoSaldo);
+                                       saveUsersFile(FUSERS);
+                                       compra = 1;
+                                   }else{
+                                       //Saldo insuficiente
+                                       strcpy(comm.word,"ERRSALDO");
+                                       comm.number = saldo;
+                                       write(fd_cli_fifo,&comm,sizeof(CA));
+                                   }
+                                }
+                                else if(item_lista[i].bid < comm.secNumber){
+                                    //Licitação
+                                    //Verifica se item tem licitador
+                                    if(strcmp(item_lista[i].licitador,"-")!=0){
+                                        //Restituir saldo do ultimo licitador
+                                        int res = updateUserBalance(item_lista[i].licitador,item_lista[i].bid);
+                                        if(res == -1){
+                                            printf("[WARNING] Não foi possível restituir o saldo do licitador anterior.\n");
+                                            printf("[ERRO] %s\n",getLastErrorText());
+                                        }
+                                        else if(res == 0){
+                                            printf("[WARNING] O utilizador '%s' não foi encontrado. Não foi possível restituir o seu saldo.\n",item_lista[i].licitador);
+                                        }
+                                        else{
+                                            saveUsersFile(FUSERS);
+                                            printf("[INFO] Saldo do utilizador '%s' restituido.\n",item_lista[i].licitador);
+                                        }
+                                    }
+                                    int saldo = getUserBalance(comm.secWord);
+                                    if(saldo >= comm.secNumber){
+                                        //Aprova licitação
+                                        novoSaldo = (saldo - comm.secNumber);
+                                        updateUserBalance(comm.secWord,novoSaldo);
+                                        saveUsersFile(FUSERS);
+                                        strcpy(item_lista[i].licitador,comm.secWord);
+
+                                        //Envia para frontend
+                                        strcpy(comm.word,"BIDDED");
+                                        comm.number = novoSaldo;
+                                        write(fd_cli_fifo,&comm,sizeof(CA));
+                                    }
+                                    else{
+                                        //Saldo insuficiente
+                                        strcpy(comm.word,"ERRSALDO");
+                                        comm.number = saldo;
+                                        write(fd_cli_fifo,&comm,sizeof(CA));
+                                    }
+                                }
+                                else{
+                                    strcpy(comm.word,"ERRVAL");
+                                    write(fd_cli_fifo,&comm,sizeof(CA));
+                                }
+                            }
+                        }
+
+                        if(compra == 1){
+                            nitems_lista--;
+
+                            //Envia para frontend
+                            strcpy(comm.word,"BOUGHT");
+                            comm.number = novoSaldo;
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+
+                        if(encontrou == 0){
+                            //Envia para frontend
+                            strcpy(comm.word,"ERRID");
+                            write(fd_cli_fifo,&comm,sizeof(CA));
+                        }
+                    }
+
+                    if(strcmp(comm.word,"CASH")==0){
+                        //Enviar saldo
+                        comm.number = getUserBalance(comm.secWord);
+                        strcpy(comm.word,"ENVCASH");
+                        write(fd_cli_fifo,&comm,sizeof(CA));
+                    }
+
+                    if(strcmp(comm.word,"ADDMONEY")==0){
+                        //Enviar confirmação carregamento
+                        int saldo = getUserBalance(comm.secWord);
+                        int novoSaldo = saldo + comm.number;
+                        //printf("PEDIDO: %d %s %d %d",comm.number,comm.secWord,saldo,(saldo + comm.number));
+                        int res = updateUserBalance(comm.secWord,novoSaldo);
+                        if(res == -1){
+                            printf("[WARNING] Não foi possível restituir o saldo do licitador anterior.\n");
+                            printf("[ERRO] %s\n",getLastErrorText());
+                        }
+                        else if(res == 0){
+                            printf("[WARNING] O utilizador '%s' não foi encontrado. Não foi possível atualizar o seu saldo.\n",comm.secWord);
+                        }
+                        else{
+                            saveUsersFile(FUSERS);
+                            printf("[INFO] Adicionadas %d SOCOins ao utilizador '%s'.\n",comm.number,comm.secWord);
+                        }
+
+                        strcpy(comm.word,"ENVADDMONEY");
+                        comm.number = novoSaldo;
+                        write(fd_cli_fifo,&comm,sizeof(CA));
+                    }
                 }
-
-                printf(":::::LISTA DE ITEMS:::::");
-                for(int i=0; i<nitems_lista; i++){
+                break;
+            }
+            case 6:{
+                for(int i=0;i<nitems_lista;i++)
+                {
                     printf("\n:::ITEM %d:::\n",i+1);
                     printf("ID: %d\n", item_lista[i].id);
                     printf("Item: %s\n", item_lista[i].nome);
@@ -483,18 +779,6 @@ int main() {
                     printf("Vendedor: %s\n", item_lista[i].vendedor);
                     printf("Licitador: %s\n", item_lista[i].licitador);
                 }
-
-//                int itemsEnviados = 0;
-//                for(int i=0; i<nitems_lista; i++){
-//                    int n = write(fd_cli_fifo,&item_lista[i],sizeof(Item));
-//                    if(n == sizeof(Item)){
-//                        itemsEnviados++;
-//                        //printf("[INFO] Enviei %d %s %s %d %d %d %s %s\n\n",it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
-//                    }
-//                }
-//                printf("Enviei %d items.",itemsEnviados);
-
-                break;
             }
             case 0:{
 

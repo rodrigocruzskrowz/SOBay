@@ -3,4 +3,6 @@
 #include "utils.h"
 #include "struct.h"
 
+void imprimeItem(Item *it, int *i);
+
 #endif //SOBay_FRONTEND_H
