@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
         //user.password = argv[2];
         user.saldo = -1;
         user.valid = 0;
-        user.pid = -1;
+        user.pid = getpid();
 
         //Verifica se o backend está em execução
         if(access(BKND_FIFO, F_OK) != 0){
@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
         }
 
         //Cria FIFO do cliente
-        user.pid = getpid();
         sprintf(cli_fifo,FRND_FIFO,user.pid);
         if(access(cli_fifo,F_OK) != 0)
             mkfifo(cli_fifo,0600);
@@ -61,7 +60,7 @@ int main(int argc, char *argv[])
         resposta = read(fd_cli_fifo,&user,sizeof(User));
         if(resposta == sizeof(User)){
             if(user.valid == 1){
-                printf("Olá, %s!\nO seu saldo é de: %d SOCoins.\n\n",user.nome,user.saldo);
+                printf("Olá, %s!\nO seu saldo é de %d SOCoins.\n\n",user.nome,user.saldo);
             }
             else{
                 printf("[INFO] Credênciais erradas. Acesso negado!\n\n");
