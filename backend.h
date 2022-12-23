@@ -33,16 +33,23 @@ struct ThreadTempoData{
 typedef struct ThreadRequestRespondeData RR;
 struct ThreadRequestRespondeData{
     CA ca;
+    User ut;
+    User *connUt;
+    int *nConnUt;
     Item *listIt;
     int *nlistIt;
     int fd_sv_fifo;
+    pthread_mutex_t *ptrinco;
     int para;
 };
 
 #define NUM_OF_THREADS 1
 
-void initPlataforma();
-void *validaLogin(void *logdata);
 void addUserConnection(User ut, User *connUt, int *nusers);
+void stopReadPromotor(int sign);
+void stopValidatingLogs(int sign);
+void initPlataforma();
+int readItemsFile(Item *item_lista, int *nitems_lista);
+void *respondeUsers(void *data);
 
 #endif //SOBay_BACKEND_H

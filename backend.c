@@ -80,7 +80,7 @@ int readItemsFile(Item *item_lista, int *nitems_lista){
                     printf("Vendedor: %s\n", item_lista[i].vendedor);
                     printf("Licitador: %s\n", item_lista[i].licitador);
 
-                    nitems_lista++;
+                    (*nitems_lista)++;
                     //printf("nlista: %d\n",nitems_lista);
                     PROX_ID = item_lista[i].id;
                     PROX_ID++;
@@ -136,38 +136,77 @@ void *incTempoInfo(void *data){
 void *respondeUsers(void *data){
     RR *trr = data;
     CA comm;
-    Item it;
+    char res_cli_fifo[MAX_SIZE_FIFO];
+    int fd_cli_fifo;
 
     //Atende pedidos
     while(trr->para == 1){
         int lido = read(trr->fd_sv_fifo,&comm,sizeof(CA));
         if(lido == sizeof(CA)){
-            if(strcmp(comm.word,"CRIAR")==0){
-                //Lê dados do item
-                Item it;
-                int lido = read(trr->fd_sv_fifo,&it,sizeof(Item));
-                if(lido == sizeof(Item)){
-                    printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s, Licitador: %s\n",
-                           it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
+            //ESPERAR PELO TRINCO (BLOQUEAR)
+            int res = pthread_mutex_lock(trr->ptrinco);
+            if(res != 0){
+                printf("[ERROR] %s\n", strerror(errno));
+            }
 
-                    //Coloca item à venda (adiciona à lista de items)
-                    trr->listIt[*trr->nlistIt].id = PROX_ID;
-                    strcpy(trr->listIt[*trr->nlistIt].nome, it.nome);
-                    strcpy(trr->listIt[*trr->nlistIt].categoria, it.categoria);
-                    trr->listIt[*trr->nlistIt].bid = it.bid;
-                    trr->listIt[*trr->nlistIt].buyNow = it.buyNow;
-                    trr->listIt[*trr->nlistIt].tempo = it.tempo;
-                    strcpy(trr->listIt[*trr->nlistIt].vendedor, it.vendedor);
-                    strcpy(trr->listIt[*trr->nlistIt].licitador, it.licitador);
-                    PROX_ID++;
-                    *trr->nlistIt++;
-
-                    CA comm;
-                    strcpy(comm.word,"INSERIDO");
-                    comm.number = *trr->nlistIt;
-                    comm.secNumber = trr->listIt[*trr->nlistIt-1].id;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+            if(strcmp(comm.word,"LOGIN")==0){
+                //Verifica
+                int encontrou = 0;
+                for (int i = 0; i < *trr->nConnUt; i++) {
+                    if (trr->connUt[i].pid == comm.ut.pid) {
+                        encontrou = 1;
+                        printf("[ERROR] O utilizador %s já está na tabela de utilizadores conectados.\n", comm.ut.nome);
+                    }
                 }
+
+                if (encontrou == 0) {
+                    comm.ut.valid = isUserValid(comm.ut.nome, comm.ut.password);
+                    if (comm.ut.valid == 0) {
+                        sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                        fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                        write(fd_cli_fifo, &comm, sizeof(CA));
+                        close(fd_cli_fifo);
+                        printf("[INFO] Tentativa de acesso com credenciais erradas.\n");
+                    } else if (comm.ut.valid == 1) {
+                        comm.ut.saldo = getUserBalance(comm.ut.nome);
+                        sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                        fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                        write(fd_cli_fifo, &comm, sizeof(CA));
+                        close(fd_cli_fifo);
+                        printf("[INFO] O utilizador '%s' fez login na plataforma.\n", comm.ut.nome);
+                        addUserConnection(comm.ut, trr->connUt, trr->nConnUt);
+                    } else {
+                        printf("[ERRO] %s\n", getLastErrorText());
+                    }
+                }
+            }
+
+            else if(strcmp(comm.word,"CRIAR")==0){
+                //Lê dados do item
+
+                printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s\nLicitador: %s\n\n",
+                       comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
+
+                //Coloca item à venda (adiciona à lista de items)
+                trr->listIt[*trr->nlistIt].id = PROX_ID;
+                strcpy(trr->listIt[*trr->nlistIt].nome, comm.it[0].nome);
+                strcpy(trr->listIt[*trr->nlistIt].categoria, comm.it[0].categoria);
+                trr->listIt[*trr->nlistIt].bid = comm.it[0].bid;
+                trr->listIt[*trr->nlistIt].buyNow = comm.it[0].buyNow;
+                trr->listIt[*trr->nlistIt].tempo = comm.it[0].tempo;
+                strcpy(trr->listIt[*trr->nlistIt].vendedor, comm.it[0].vendedor);
+                strcpy(trr->listIt[*trr->nlistIt].licitador, comm.it[0].licitador);
+                PROX_ID++;
+                (*trr->nlistIt)++;
+
+                //Informa cliente
+                strcpy(comm.word,"INSERIDO");
+                comm.number = *trr->nlistIt;
+                comm.secNumber = trr->listIt[(*trr->nlistIt)-1].id;
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                write(fd_cli_fifo, &comm, sizeof(CA));
+                close(fd_cli_fifo);
 
                 printf(":::::LISTA DE ITEMS:::::");
                 for(int i=0; i<*trr->nlistIt; i++){
@@ -183,156 +222,171 @@ void *respondeUsers(void *data){
                 }
             }
 
-            if(strcmp(comm.word,"LISTAR")==0){
-                //Enviar sucesso na receção do comando
+            else if(strcmp(comm.word,"LISTAR")==0){
+
                 strcpy(comm.word,"ENVIADO");
                 comm.number = *trr->nlistIt;
-                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
 
-                //Enviar lista de items
+                //Add items à estrutura de comunicação
                 int itemsEnviados = 0;
                 for(int i=0; i<*trr->nlistIt; i++){
-                    int n = write(trr->fd_sv_fifo,&trr->listIt[i],sizeof(Item));
-                    if(n == sizeof(Item)){
-                        itemsEnviados++;
-                        //printf("[INFO] Enviei %d %s %s %d %d %d %s %s\n\n",it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
-                    }
+                    comm.it[i] = trr->listIt[i];
+                    itemsEnviados++;
                 }
+
+                //Enviar lista de items
+                int n = write(fd_cli_fifo,&comm,sizeof(CA));
                 printf("Enviei %d items.\n",itemsEnviados);
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"LISTCAT")==0){
+            else if(strcmp(comm.word,"LISTCAT")==0){
                 //Verifica se existem items com a categoria recebida
-                Item it_cat_list[MAX_ITEMS];
                 int itemsAEnviar = 0;
                 for(int i=0;i<*trr->nlistIt;i++){
                     if(strcmp(trr->listIt[i].categoria,comm.secWord)==0){
-                        it_cat_list[itemsAEnviar++] = trr->listIt[i];
+                        comm.it[itemsAEnviar++] = trr->listIt[i];
                     }
                 }
+
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
 
                 if(itemsAEnviar > 0){
                     //Enviar sucesso na receção do comando
                     strcpy(comm.word,"ENVCAT");
                     comm.number = itemsAEnviar;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
 
                     //Enviar items da categoria recebida
-                    for(int i=0;i<itemsAEnviar;i++){
-                        write(trr->fd_sv_fifo,&it_cat_list[i],sizeof(Item));
-                    }
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                     printf("Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
                     strcpy(comm.word,"ENVCAT");
                     comm.number = 0;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                 }
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"LISTSEL")==0){
+            else if(strcmp(comm.word,"LISTSEL")==0){
                 //Verifica se existem items do vendedor recebida
-                Item it_sel_list[MAX_ITEMS];
                 int itemsAEnviar = 0;
                 for(int i=0;i<*trr->nlistIt;i++){
                     if(strcmp(trr->listIt[i].vendedor,comm.secWord)==0){
-                        it_sel_list[itemsAEnviar++] = trr->listIt[i];
+                        comm.it[itemsAEnviar++] = trr->listIt[i];
                     }
                 }
+
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
 
                 if(itemsAEnviar > 0){
                     //Enviar sucesso na receção do comando
                     strcpy(comm.word,"ENVSEL");
                     comm.number = itemsAEnviar;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
 
                     //Enviar items da categoria recebida
-                    for(int i=0;i<itemsAEnviar;i++){
-                        write(trr->fd_sv_fifo,&it_sel_list[i],sizeof(Item));
-                    }
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                     printf("Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
                     strcpy(comm.word,"ENVSEL");
                     comm.number = 0;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                 }
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"LISTVAL")==0){
+            else if(strcmp(comm.word,"LISTVAL")==0){
                 //Verifica se existem items ate ao valor recebido
-                Item it_val_list[MAX_ITEMS];
                 int itemsAEnviar = 0;
                 for(int i=0;i<*trr->nlistIt;i++){
                     if(trr->listIt[i].bid <= comm.number){
-                        it_val_list[itemsAEnviar++] = trr->listIt[i];
+                        comm.it[itemsAEnviar++] = trr->listIt[i];
                     }
                 }
+
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
 
                 if(itemsAEnviar > 0){
                     //Enviar sucesso na receção do comando
                     strcpy(comm.word,"ENVVAL");
                     comm.number = itemsAEnviar;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
 
                     //Enviar items da categoria recebida
-                    for(int i=0;i<itemsAEnviar;i++){
-                        write(trr->fd_sv_fifo,&it_val_list[i],sizeof(Item));
-                    }
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                     printf("Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
                     strcpy(comm.word,"ENVVAL");
                     comm.number = 0;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                 }
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"LISTIM")==0){
+            else if(strcmp(comm.word,"LISTIM")==0){
                 //Verifica se existem items ate ao valor recebido
-                Item it_tim_list[MAX_ITEMS];
                 int itemsAEnviar = 0;
                 for(int i=0;i<*trr->nlistIt;i++){
                     if((TEMPO + trr->listIt[i].tempo) >= comm.number){
-                        it_tim_list[itemsAEnviar++] = trr->listIt[i];
+                        comm.it[itemsAEnviar++] = trr->listIt[i];
                     }
                 }
+
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
 
                 if(itemsAEnviar > 0){
                     //Enviar sucesso na receção do comando
                     strcpy(comm.word,"ENVTIM");
                     comm.number = itemsAEnviar;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
 
                     //Enviar items da categoria recebida
-                    for(int i=0;i<itemsAEnviar;i++){
-                        write(trr->fd_sv_fifo,&it_tim_list[i],sizeof(Item));
-                    }
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                     printf("Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
                     strcpy(comm.word,"ENVTIM");
                     comm.number = 0;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                 }
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"TIME")==0){
+            else if(strcmp(comm.word,"TIME")==0){
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+
                 //Enviar tempo atual
                 strcpy(comm.word,"ENVTIME");
                 comm.number = TEMPO;
-                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                write(fd_cli_fifo,&comm,sizeof(CA));
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"BUY")==0){
+            else if(strcmp(comm.word,"BUY")==0){
                 //word-IDENTIFICATION WORD; secWord-USERNAME; number-ITEM ID; secNumber-VALOR
                 int encontrou = 0;
                 int compra = 0;
                 int novoSaldo;
+
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
 
                 for(int i=0; i<*trr->nlistIt;i++){
 
@@ -358,7 +412,7 @@ void *respondeUsers(void *data){
                                 //Saldo insuficiente
                                 strcpy(comm.word,"ERRSALDO");
                                 comm.number = saldo;
-                                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                                write(fd_cli_fifo,&comm,sizeof(CA));
                             }
                         }
                         else if(trr->listIt[i].bid < comm.secNumber){
@@ -390,18 +444,18 @@ void *respondeUsers(void *data){
                                 //Envia para frontend
                                 strcpy(comm.word,"BIDDED");
                                 comm.number = novoSaldo;
-                                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                                write(fd_cli_fifo,&comm,sizeof(CA));
                             }
                             else{
                                 //Saldo insuficiente
                                 strcpy(comm.word,"ERRSALDO");
                                 comm.number = saldo;
-                                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                                write(fd_cli_fifo,&comm,sizeof(CA));
                             }
                         }
                         else{
                             strcpy(comm.word,"ERRVAL");
-                            write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                            write(fd_cli_fifo,&comm,sizeof(CA));
                         }
                     }
                 }
@@ -412,24 +466,34 @@ void *respondeUsers(void *data){
                     //Envia para frontend
                     strcpy(comm.word,"BOUGHT");
                     comm.number = novoSaldo;
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                 }
 
                 if(encontrou == 0){
                     //Envia para frontend
                     strcpy(comm.word,"ERRID");
-                    write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                    write(fd_cli_fifo,&comm,sizeof(CA));
                 }
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"CASH")==0){
+            else if(strcmp(comm.word,"CASH")==0){
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+
                 //Enviar saldo
                 comm.number = getUserBalance(comm.secWord);
                 strcpy(comm.word,"ENVCASH");
-                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                write(fd_cli_fifo,&comm,sizeof(CA));
+
+                close(fd_cli_fifo);
             }
 
-            if(strcmp(comm.word,"ADDMONEY")==0){
+            else if(strcmp(comm.word,"ADDMONEY")==0){
+                sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
+                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+
                 //Enviar confirmação carregamento
                 int saldo = getUserBalance(comm.secWord);
                 int novoSaldo = saldo + comm.number;
@@ -449,65 +513,17 @@ void *respondeUsers(void *data){
 
                 strcpy(comm.word,"ENVADDMONEY");
                 comm.number = novoSaldo;
-                write(trr->fd_sv_fifo,&comm,sizeof(CA));
+                write(fd_cli_fifo,&comm,sizeof(CA));
+
+                close(fd_cli_fifo);
+            }
+            else if(strcmp(comm.word,"SHUTDOWN")==0){
+                printf("[INFO] Pedido de encerramento recebido.\n");
             }
         }
+        //ESPERAR PELO TRINCO (DESBLOQUEAR)
+        pthread_mutex_unlock(trr->ptrinco);
     }
-}
-
-void *validaLogin(void *data){
-    LogData *ld = data;
-    int fd_cli_fifo;
-    char res_cli_fifo[MAX_SIZE_FIFO];
-
-    //Para parar a thread é preciso mandar tambem qualquer coisa para ser lida de forma a
-    //desbloquear o READ.
-    while(ld->para == 1) {
-        int dados = read(ld->fd_sv_fifo, &ld->ut, sizeof(User));
-        if (dados == sizeof(User)) {
-            printf("\n\n[INFO] Logs recebidos: %s %s\n", ld->ut.nome, ld->ut.password);
-        }
-
-        //Verifica
-        if(strcmp(ld->ut.nome, "terminarProgReq") == 0 && strcmp(ld->ut.password, "terminarProgReq") == 0){
-            printf("[INFO] A terminar thread\n");
-            continue;
-        }
-        int encontrou = 0;
-        for (int i = 0; i < *ld->nConnUt; i++) {
-            if (ld->connUt->pid == ld->ut.pid) {
-                encontrou = 1;
-                printf("[ERROR] O utilizador %s já está na tabela de utilizadores conectados.\n", ld->ut.nome);
-            }
-        }
-
-        if (encontrou == 0) {
-            //ESPERAR PELO TRINCO (BLOQUEAR)
-            pthread_mutex_lock(ld->ptrinco);
-
-            ld->ut.valid = isUserValid(ld->ut.nome, ld->ut.password);
-            if (ld->ut.valid == 0) {
-                sprintf(res_cli_fifo, FRND_FIFO, ld->ut.pid);
-                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
-                write(fd_cli_fifo, &ld->ut, sizeof(User));
-                printf("[INFO] Tentativa de acesso com credenciais erradas.\n");
-            } else if (ld->ut.valid == 1) {
-                ld->ut.saldo = getUserBalance(ld->ut.nome);
-                sprintf(res_cli_fifo, FRND_FIFO, ld->ut.pid);
-                fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
-                write(fd_cli_fifo, &ld->ut, sizeof(User));
-                printf("[INFO] O utilizador '%s' fez login na plataforma.\n", ld->ut.nome);
-                addUserConnection(ld->ut, ld->connUt, ld->nConnUt);
-            } else {
-                printf("[ERRO] %s\n", getLastErrorText());
-            }
-
-            //ESPERAR PELO TRINCO (DESBLOQUEAR)
-            pthread_mutex_unlock(ld->ptrinco);
-        }
-    }
-
-    pthread_exit(NULL);
 }
 
 int main() {
@@ -519,20 +535,18 @@ int main() {
     Item item_lista[MAX_ITEMS];
     int nitems_lista = 0;
     int fd_sv_fifo;
-    int fd_cli_fifo;
-    char res_cli_fifo[MAX_SIZE_FIFO];
 
     //Verifica se backend já está em execução
     if(access(BKND_FIFO,F_OK) == 0){
         printf("O BACKEND já está em execução!\n");
-        exit(1);
+//        exit(1);
     }
 
     //Verifica se a variavel de ambiente FUSERS existe
     if(getenv("FUSERS") == NULL){
         printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-//      FUSERS = "../users.txt";
-        exit(1);
+      FUSERS = "../users.txt";
+//        exit(1);
     }
     else{
         FUSERS = getenv("FUSERS");
@@ -542,7 +556,8 @@ int main() {
     //Verifica se a variavel de ambiente FPROMOTERS existe
     if(getenv("FPROMOTERS") == NULL){
         printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
-        exit(1);
+        FPROMOTERS = "../promotores.txt";
+//        exit(1);
     }
     else{
         FPROMOTERS = getenv("FPROMOTERS");
@@ -552,7 +567,8 @@ int main() {
     //Verifica se a variavel de ambiente FITEMS existe
     if(getenv("FITEMS") == NULL){
         printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-        exit(1);
+        FITEMS = "../items.txt";
+//        exit(1);
     }
     else{
         FITEMS = getenv("FITEMS");
@@ -563,8 +579,8 @@ int main() {
     int nUtilizadores = loadUsersFile(FUSERS);
     printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
 
-    int itemSuccess = readItemsFile(item_lista,&nitems_lista);
-    if(itemSuccess == 0){
+    int readSuccess = readItemsFile(item_lista,&nitems_lista);
+    if(readSuccess == 0){
         exit(1);
     }
 
@@ -576,16 +592,17 @@ int main() {
     pthread_mutex_t trinco;
     pthread_mutex_init(&trinco,NULL);
     pthread_t thread[NUM_OF_THREADS];
-    LogData tlogdata;
+    RR rrdata;
 
-    //Inicializa estrutura a passar para a thread de validação de login
-    tlogdata.connUt = connectedUsers;
-    tlogdata.nConnUt = &nConnectedUsers;
-    tlogdata.fd_sv_fifo = fd_sv_fifo;
-    tlogdata.ptrinco = &trinco;
-    tlogdata.para = 1;
+    rrdata.connUt = connectedUsers;
+    rrdata.nConnUt = &nConnectedUsers;
+    rrdata.listIt = item_lista;
+    rrdata.nlistIt = &nitems_lista;
+    rrdata.ptrinco = &trinco;
+    rrdata.fd_sv_fifo = fd_sv_fifo;
+    rrdata.para = 1;
 
-    int ver = pthread_create(&thread[0],NULL,validaLogin,&tlogdata);
+    int ver = pthread_create(&thread[0],NULL,respondeUsers,&rrdata);
     if(ver){
         printf("[ERROR] Erro ao criar a thread %d (validação de login).\n",ver);
         exit(1);
@@ -687,12 +704,10 @@ int main() {
     int opc;
     int estado;
     do {
-        printf("\nDeseja testar qual opção?\n");
-        printf("1-Comandos\n");
+        printf("\n  ::::TEMPORARIO::::\n");
+        printf("Deseja testar qual opção?\n");
         printf("2-Execução do promotor\n");
         printf("3-Utilizadores\n");
-        printf("4-Items\n");
-        printf("5-Responde a comandos\n");
         printf("6-Lista de items\n");
         printf("0-Terminar\n");
         printf("Opção: ");
@@ -844,25 +859,6 @@ int main() {
 
                 break;
             }
-            case 4: {
-                //Verifica se a variavel de ambiente FITEMS existe
-                if(getenv("FITEMS") == NULL){
-                    printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-                    //FITEMS = "../items.txt";
-                    exit(1);
-                }
-                else{
-                    FITEMS = getenv("FITEMS");
-                    printf("\nVariável de ambiente 'FITEMS' = %s\n\n",FITEMS);
-                }
-
-
-                break;
-            }
-            case 5:{
-
-                break;
-            }
             case 6:{
                 for(int i=0;i<nitems_lista;i++)
                 {
@@ -893,22 +889,19 @@ int main() {
     }
 
     for(int i=0;i<NUM_OF_THREADS;i++){
-        tlogdata.para = 0;
-        User us;
-        strcpy(us.nome,"terminarProgReq");
-        strcpy(us.password,"terminarProgReq");
-        int n = write(fd_sv_fifo,&us,sizeof(User));
+        rrdata.para = 0;
+        CA end;
+        strcpy(end.word,"SHUTDOWN");
+        int n = write(fd_sv_fifo,&end,sizeof(CA));
         if(n == sizeof(User)){
-            printf("[INFO] Enviei %s %s\n",us.nome, us.password);
+            printf("[INFO] Enviei %s\n",end.word);
         }
         pthread_join(thread[i],NULL);
     }
     pthread_mutex_destroy(&trinco);
 
-    close(fd_cli_fifo);
     close(fd_sv_fifo);
-    unlink(res_cli_fifo); //Fecha canal do cliente
     unlink(BKND_FIFO); //Fecha canal do servidor
-    printf("\n[INFO] Plataforma terminada! Todos os canais foram fechados.\n");
+    printf("[INFO] Plataforma terminada!\n");
     return 0;
 }
