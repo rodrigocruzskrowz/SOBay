@@ -1,32 +1,20 @@
 #include "frontend.h"
 
-void imprimeItem(Item *it, int *i){
-    printf("\n:::ITEM %d:::\n",*i+1);
-    printf("ID: %d\n", it->id);
-    printf("Item: %s\n", it->nome);
-    printf("Categoria: %s\n", it->categoria);
-    printf("Licitação: %d\n", it->bid);
-    printf("Compre já: %d\n", it->buyNow);
-    printf("Tempo de venda: %d\n", it->tempo);
-    printf("Vendedor: %s\n", it->vendedor);
-    printf("Licitador: %s\n", it->licitador);
-}
-
 int main(int argc, char *argv[])
 {
-    User user;
     int fd_bknd_fifo;
     int fd_cli_fifo;
     char cli_fifo[MAX_SIZE_FIFO];
+
     if(argc == 3){
-        //Inicializa estrutura do utilizador
-        strcpy(user.nome,argv[1]);
-        //user.nome = argv[1];
-        strcpy(user.password,argv[2]);
-        //user.password = argv[2];
-        user.saldo = -1;
-        user.valid = 0;
-        user.pid = -1;
+        CA main;
+
+        strcpy(main.word, "LOGIN");
+        strcpy(main.ut.nome, argv[1]);
+        strcpy(main.ut.password, argv[2]);
+        main.ut.saldo = -1;
+        main.ut.valid = 0;
+        main.ut.pid = getpid();
 
         //Verifica se o backend está em execução
         if(access(BKND_FIFO, F_OK) != 0){
@@ -40,8 +28,7 @@ int main(int argc, char *argv[])
         }
 
         //Cria FIFO do cliente
-        user.pid = getpid();
-        sprintf(cli_fifo,FRND_FIFO,user.pid);
+        sprintf(cli_fifo, FRND_FIFO, main.ut.pid);
         if(access(cli_fifo,F_OK) != 0)
             mkfifo(cli_fifo,0600);
         fd_cli_fifo = open(cli_fifo,O_RDWR);
@@ -51,17 +38,17 @@ int main(int argc, char *argv[])
         }
 
         //Envia login para o BACKEND
-        int n = write(fd_bknd_fifo,&user,sizeof(User));
-//        if(n == sizeof(User)){
-//            printf("[INFO] Enviei %s %s %d\n",user.nome, user.password,user.pid);
-//        }
-
+        int n = write(fd_bknd_fifo, &main, sizeof(CA));
+        if(n == sizeof(CA)){
+            printf("[INFO] Enviei %s %s %d\n", main.ut.nome, main.ut.password, main.ut.pid);
+            printf("[INFO] Pedi para autenticar\n\n");
+        }
         //Recebe validação do login
         int resposta;
-        resposta = read(fd_cli_fifo,&user,sizeof(User));
-        if(resposta == sizeof(User)){
-            if(user.valid == 1){
-                printf("Olá, %s!\nO seu saldo é de: %d SOCoins.\n\n",user.nome,user.saldo);
+        resposta = read(fd_cli_fifo, &main, sizeof(CA));
+        if(resposta == sizeof(CA)){
+            if(main.ut.valid == 1){
+                printf("Olá, %s!\nO seu saldo é de %d SOCoins.\n\n", main.ut.nome, main.ut.saldo);
             }
             else{
                 printf("[INFO] Credênciais erradas. Acesso negado!\n\n");
@@ -127,12 +114,7 @@ int main(int argc, char *argv[])
                 if(strcmp(comando[0],"sell")==0){
                     if(c==6) {
                         CA comm;
-                        comm.pid = user.pid;
-                        Item it;
                         int isValid = 1;
-
-                        strcpy(it.nome,comando[1]);
-                        strcpy(it.categoria,comando[2]);
 
                         //Verificar se preço é inteiro
                         j=0;
@@ -149,8 +131,6 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
-                        it.bid = atoi(comando[3]);
-
                         //Verificar se buyNow é inteiro
                         j=0;
                         while(comando[4][j]!='\0'){
@@ -165,8 +145,6 @@ int main(int argc, char *argv[])
 
                         if(isValid == 0)
                             continue;
-
-                        it.buyNow = atoi(comando[4]);
 
                         //Verificar se duração é inteiro
                         j=0;
@@ -183,21 +161,22 @@ int main(int argc, char *argv[])
                         if(isValid == 0)
                             continue;
 
-                        it.tempo = atoi(comando[5]);
-
 //                        printf("Comando válido!\n");
 
                         //Informa o backend de que quer criar item
+                        comm.ut.pid = main.ut.pid;
                         strcpy(comm.word,"CRIAR");
-                        write(fd_bknd_fifo,&comm,sizeof(CA));
-
-                        //Envia Item para o backend
-                        it.id = 0;
-                        strcpy(it.vendedor,user.nome);
-                        strcpy(it.licitador,"-");
-                        int n = write(fd_bknd_fifo,&it,sizeof(Item));
-                        if(n == sizeof(Item)){
-                            printf("[INFO] Enviei %d %s %s %d %d %d %s %s\n\n",it.id,it.nome,it.categoria,it.bid,it.buyNow,it.tempo,it.vendedor,it.licitador);
+                        strcpy(comm.it[0].nome,comando[1]);
+                        strcpy(comm.it[0].categoria,comando[2]);
+                        comm.it[0].bid = atoi(comando[3]);
+                        comm.it[0].buyNow = atoi(comando[4]);
+                        comm.it[0].tempo = atoi(comando[5]);
+                        comm.it[0].id = 0;
+                        strcpy(comm.it[0].vendedor,main.ut.nome);
+                        strcpy(comm.it[0].licitador,"-");
+                        int n = write(fd_bknd_fifo,&comm,sizeof(CA));
+                        if(n == sizeof(CA)){
+                            printf("[INFO] Enviei %s %d %s %s %d %d %d %s %s\n\n",comm.word,comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
                         }
 
                         //Recebe confirmação do registo do Item
@@ -220,33 +199,25 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"list")==0){
                     if(c==1) {
                         CA comm;
-                        comm.pid = user.pid;
-
-                        Item it;
-
                         //Listar items
 //                        printf("Comando válido!\n");
 
                         //Envia pedido para o backend
                         strcpy(comm.word,"LISTAR");
+                        comm.ut.pid = main.ut.pid;
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(Item)){
+                        if(n == sizeof(CA)){
                             printf("[INFO] Pedi para '%s' items.\n\n",comm.word);
                         }
 
                         //Recebe resposta
                         int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
                         if(resposta == sizeof(CA)){
-                            //printf("Recebi: %s",comm.word);
+                            //printf("Recebi: %s",main.word);
                             if(strcmp(comm.word,"ENVIADO")==0){
                                 //Recebe lista de items
                                 printf("\n\n:::::LISTA DE ITEMS:::::");
-                                for(int i=0; i<comm.number; i++){
-                                    resposta = read(fd_cli_fifo,&it,sizeof(Item));
-                                    if(resposta == sizeof(Item)){
-                                        imprimeItem(&it,&i);
-                                    }
-                                }
+                                imprimeItem(comm.it,comm.number);
                             }
                             else{
                                 printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
@@ -262,8 +233,7 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"licat")==0){
                     if(c==2) {
                         CA comm;
-                        comm.pid = user.pid;
-                        Item it;
+                        comm.ut.pid = main.ut.pid;
                         //Listar Items da categoria
 //                        printf("Comando válido!\n");
 
@@ -285,12 +255,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    for(int i=0; i<comm.number; i++){
-                                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
-                                        if(resposta == sizeof(Item)){
-                                            imprimeItem(&it,&i);
-                                        }
-                                    }
+                                    imprimeItem(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -307,7 +272,7 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"lisel")==0){
                     if(c==2) {
                         CA comm;
-                        comm.pid = user.pid;
+                        comm.ut.pid = main.ut.pid;
                         Item it;
                         //Listar Items do vendedor
 //                        printf("Comando válido!\n");
@@ -330,12 +295,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    for(int i=0; i<comm.number; i++){
-                                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
-                                        if(resposta == sizeof(Item)){
-                                            imprimeItem(&it,&i);
-                                        }
-                                    }
+                                    imprimeItem(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -352,8 +312,7 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"lival")==0){
                     if(c==2) {
                         CA comm;
-                        comm.pid = user.pid;
-                        Item it;
+                        comm.ut.pid = main.ut.pid;
                         int isValid = 1;
                         //Verificar se preço é inteiro
                         j=0;
@@ -390,12 +349,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    for(int i=0; i<comm.number; i++){
-                                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
-                                        if(resposta == sizeof(Item)){
-                                            imprimeItem(&it,&i);
-                                        }
-                                    }
+                                    imprimeItem(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -412,8 +366,7 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"litime")==0){
                     if(c==2) {
                         CA comm;
-                        comm.pid = getpid();
-                        Item it;
+                        comm.ut.pid = main.ut.pid;
                         int isValid = 1;
                         //Verificar se tempo é inteiro
                         j=0;
@@ -450,12 +403,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    for(int i=0; i<comm.number; i++){
-                                        resposta = read(fd_cli_fifo,&it,sizeof(Item));
-                                        if(resposta == sizeof(Item)){
-                                            imprimeItem(&it,&i);
-                                        }
-                                    }
+                                    imprimeItem(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -472,6 +420,7 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"time")==0){
                     if(c==1) {
                         CA comm;
+                        comm.ut.pid = main.ut.pid;
                         //Indicar hora atual
 //                        printf("Comando válido!\n");
                         //Envia pedido para o backend
@@ -536,14 +485,16 @@ int main(int argc, char *argv[])
                         //Envia para o backend
                         CA comm;
                         //word-IDENTIFICATION WORD; secWord-USERNAME; number-ITEM ID; secNumber-VALOR
+                        comm.ut.pid = main.ut.pid;
                         strcpy(comm.word,"BUY");
-                        strcpy(comm.secWord,user.nome);
+                        strcpy(comm.secWord,main.ut.nome);
                         comm.number = atoi(comando[1]);
                         comm.secNumber = atoi(comando[2]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Licitei o item %d por %d SOCoins.\n\n",comm.number, comm.secNumber);
                         }
+
                         //Recebe resposta do backend
                         int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
                         if(resposta == sizeof(CA)){
@@ -576,11 +527,12 @@ int main(int argc, char *argv[])
                 else if(strcmp(comando[0],"cash")==0){
                     if(c==1) {
                         CA comm;
+                        comm.ut.pid = main.ut.pid;
                         //Mostra saldo
 //                        printf("Comando válido!\n");
                         //Envia pedido para o backend
                         strcpy(comm.word,"CASH");
-                        strcpy(comm.secWord,user.nome);
+                        strcpy(comm.secWord,main.ut.nome);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi para consultar o meu saldo.\n\n");
@@ -623,11 +575,12 @@ int main(int argc, char *argv[])
                             continue;
 
                         CA comm;
+                        comm.ut.pid = main.ut.pid;
                         //Adiciona saldo
 //                        printf("Comando válido!\n");
                         //Envia pedido para o backend
                         strcpy(comm.word,"ADDMONEY");
-                        strcpy(comm.secWord,user.nome);
+                        strcpy(comm.secWord,main.ut.nome);
                         comm.number = atoi(comando[1]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){

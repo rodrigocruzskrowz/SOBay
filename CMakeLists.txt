@@ -24,3 +24,5 @@ add_executable(backend
         users_lib.h
         users_lib.o
         struct.h)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")

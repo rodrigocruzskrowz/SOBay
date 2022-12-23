@@ -51,13 +51,13 @@ build cmake_object_order_depends_target_frontend: phony || CMakeFiles/frontend.d
 
 build CMakeFiles/frontend.dir/frontend.c.o: C_COMPILER__frontend_Debug /home/rodrigocruz/Github/SOBay/frontend.c || cmake_object_order_depends_target_frontend
   DEP_FILE = CMakeFiles/frontend.dir/frontend.c.o.d
-  FLAGS = -g -std=gnu99
+  FLAGS = -pthread -g -std=gnu99
   OBJECT_DIR = CMakeFiles/frontend.dir
   OBJECT_FILE_DIR = CMakeFiles/frontend.dir
 
 build CMakeFiles/frontend.dir/utils.c.o: C_COMPILER__frontend_Debug /home/rodrigocruz/Github/SOBay/utils.c || cmake_object_order_depends_target_frontend
   DEP_FILE = CMakeFiles/frontend.dir/utils.c.o.d
-  FLAGS = -g -std=gnu99
+  FLAGS = -pthread -g -std=gnu99
   OBJECT_DIR = CMakeFiles/frontend.dir
   OBJECT_FILE_DIR = CMakeFiles/frontend.dir
 
@@ -70,7 +70,7 @@ build CMakeFiles/frontend.dir/utils.c.o: C_COMPILER__frontend_Debug /home/rodrig
 # Link the executable frontend
 
 build frontend: C_EXECUTABLE_LINKER__frontend_Debug ../users_lib.o CMakeFiles/frontend.dir/frontend.c.o CMakeFiles/frontend.dir/utils.c.o
-  FLAGS = -g
+  FLAGS = -pthread -g
   OBJECT_DIR = CMakeFiles/frontend.dir
   POST_BUILD = :
   PRE_LINK = :
@@ -88,13 +88,13 @@ build cmake_object_order_depends_target_backend: phony || CMakeFiles/backend.dir
 
 build CMakeFiles/backend.dir/backend.c.o: C_COMPILER__backend_Debug /home/rodrigocruz/Github/SOBay/backend.c || cmake_object_order_depends_target_backend
   DEP_FILE = CMakeFiles/backend.dir/backend.c.o.d
-  FLAGS = -g -std=gnu99
+  FLAGS = -pthread -g -std=gnu99
   OBJECT_DIR = CMakeFiles/backend.dir
   OBJECT_FILE_DIR = CMakeFiles/backend.dir
 
 build CMakeFiles/backend.dir/utils.c.o: C_COMPILER__backend_Debug /home/rodrigocruz/Github/SOBay/utils.c || cmake_object_order_depends_target_backend
   DEP_FILE = CMakeFiles/backend.dir/utils.c.o.d
-  FLAGS = -g -std=gnu99
+  FLAGS = -pthread -g -std=gnu99
   OBJECT_DIR = CMakeFiles/backend.dir
   OBJECT_FILE_DIR = CMakeFiles/backend.dir
 
@@ -107,7 +107,7 @@ build CMakeFiles/backend.dir/utils.c.o: C_COMPILER__backend_Debug /home/rodrigoc
 # Link the executable backend
 
 build backend: C_EXECUTABLE_LINKER__backend_Debug ../users_lib.o CMakeFiles/backend.dir/backend.c.o CMakeFiles/backend.dir/utils.c.o
-  FLAGS = -g
+  FLAGS = -pthread -g
   OBJECT_DIR = CMakeFiles/backend.dir
   POST_BUILD = :
   PRE_LINK = :
