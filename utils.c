@@ -1,6 +1,6 @@
 #include "utils.h"
 
-void imprimeItem(Item *it, int nitems){
+void imprimeItems(Item *it, int nitems){
     for(int i=0; i<nitems; i++) {
         printf("\n:::ITEM %d:::\n", i + 1);
         printf("ID: %d\n", it[i].id);

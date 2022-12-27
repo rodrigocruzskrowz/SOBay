@@ -16,11 +16,22 @@ int main(int argc, char *argv[])
         main.ut.valid = 0;
         main.ut.pid = getpid();
 
+        //Verifica se a variavel de ambiente HEARTBEAT existe
+        if(getenv("HEARTBEAT") == NULL){
+            printf("A variável de ambiente 'HEARTBEAT' não foi definida.\n");
+            exit(1);
+        }
+        else{
+            const int HEARTBEAT = atoi(getenv("HEARTBEAT"));
+            printf("Variável de ambiente 'HEARTBEAT' = %d\n\n",HEARTBEAT);
+        }
+
         //Verifica se o backend está em execução
         if(access(BKND_FIFO, F_OK) != 0){
             printf("[ERROR] O BACKEND não está em execução.\n");
             exit(1);
         }
+
         fd_bknd_fifo = open(BKND_FIFO,O_WRONLY);
         if(fd_bknd_fifo == -1){
             printf("[ERROR] Não foi possível abrir o canal de comunicação com o BACKEND.\n");
@@ -86,7 +97,16 @@ int main(int argc, char *argv[])
             }
             if(res_sel > 0 && FD_ISSET(fd_cli_fifo, &fd)){
                 //Trata dados recebidos
+                CA comm;
+                int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
+                if(resposta == sizeof(CA)){
+                    if(strcmp(comm.word,"SHUTDOWNALL") == 0){
+                        printf("[INFO] O BACKEND informou que vai encerrar. A terminar plataforma...\n\n");
+                        //TODO: TERMINAR FRONTEND
+                    }
+                }
 
+                //TODO: COLOCAR AQUI TODAS AS RESPOSTAS AOS COMANDOS
             }
             if(res_sel > 0 && FD_ISSET(0, &fd)){
                 //Lê comando
@@ -217,7 +237,7 @@ int main(int argc, char *argv[])
                             if(strcmp(comm.word,"ENVIADO")==0){
                                 //Recebe lista de items
                                 printf("\n\n:::::LISTA DE ITEMS:::::");
-                                imprimeItem(comm.it,comm.number);
+                                imprimeItems(comm.it,comm.number);
                             }
                             else{
                                 printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
@@ -255,7 +275,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItem(comm.it,comm.number);
+                                    imprimeItems(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -295,7 +315,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItem(comm.it,comm.number);
+                                    imprimeItems(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -349,7 +369,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItem(comm.it,comm.number);
+                                    imprimeItems(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -403,7 +423,7 @@ int main(int argc, char *argv[])
                                 else{
                                     //Recebe lista de items
                                     printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItem(comm.it,comm.number);
+                                    imprimeItems(comm.it,comm.number);
                                 }
                             }
                             else{
@@ -606,13 +626,14 @@ int main(int argc, char *argv[])
 
                 else if(strcmp(comando[0],"exit")==0){
                     if(c==1) {
-                        //Avisa o backend que o cliente saiu
-
-                        //Sair
-                        close(fd_bknd_fifo);
-                        close(fd_cli_fifo);
-                        unlink(cli_fifo);
-                        exit(1);
+                        //Avisa o backend que vai sair e sair
+                        CA comm;
+                        comm.ut.pid = main.ut.pid;
+                        strcpy(comm.word,"EXIT");
+                        int n = write(fd_bknd_fifo,&comm,sizeof(CA));
+                        if(n == sizeof(CA)){
+                            printf("[INFO] Avisei que me ia desconectar.\n\n");
+                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -625,16 +646,6 @@ int main(int argc, char *argv[])
                 }
                 i=0,j=0,c=0;
             }
-        }
-
-        //Verifica se a variavel de ambiente HEARTBEAT existe
-        if(getenv("HEARTBEAT") == NULL){
-            printf("A variável de ambiente 'HEARTBEAT' não foi definida.\n");
-            exit(1);
-        }
-        else{
-            const int HEARTBEAT = atoi(getenv("HEARTBEAT"));
-            printf("Variável de ambiente 'HEARTBEAT' = %d\n\n",HEARTBEAT);
         }
     }
     else{
