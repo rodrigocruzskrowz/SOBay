@@ -125,22 +125,45 @@ int readItemsFile(Item *item_lista, int *nitems_lista){
 }
 
 void *incTempoInfo(void *data){
-    TD *td = data;
+    TD *ttd = data;
 
-    sleep(1);
-
-    while(td->para == 1){
-
+    while(ttd->para == 1){
         //Incrementa tempo
+        sleep(1);
+        pthread_mutex_lock(ttd->ptrinco);
+        pthread_mutex_lock(ttd->ptrinco_promos);
         TEMPO++;
 
         //Decrementa tempo de items em leilao
+        for(int i=0;i<*ttd->nlistIt;i++){
+            //Decrementa tempo do item
+            (ttd->listIt[i].tempo)--;
 
-        //Decrementa tempo de promoções (?)
+            //Decrementa tempo da promoções (?)
+            if(ttd->listIt[i].promocao.duracao > 0)
+                (ttd->listIt[i].promocao.duracao)--;
 
-        //Avisa todos os utilizadores de um acontecimento
-        //(Item X comprado; Item Y Acabou o tempo;...)
+            if(ttd->listIt[i].tempo == 0){
+                //Avisa todos os utilizadores que o item X expirou
+                for(int j=0;j<*ttd->nConnUt;j++){
+                    char res_cli_fifo[MAX_SIZE_FIFO];
+                    int fd_cli_fifo;
+                    CA comm;
+                    sprintf(res_cli_fifo, FRND_FIFO, ttd->connUt->pid);
+                    fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                    strcpy(comm.word,"ITEXPIRED");
+                    strcpy(comm.secWord,ttd->listIt[i-1].nome);
+                    write(fd_cli_fifo, &comm, sizeof(CA));
+                    close(fd_cli_fifo);
+                }
 
+                ttd->listIt[i] = ttd->listIt[i+1];
+                (*ttd->nlistIt)--;
+            }
+        }
+
+        pthread_mutex_unlock(ttd->ptrinco_promos);
+        pthread_mutex_unlock(ttd->ptrinco);
     }
     pthread_exit(NULL);
 }
@@ -156,10 +179,7 @@ void *respondeUsers(void *data){
         int lido = read(trr->fd_sv_fifo,&comm,sizeof(CA));
         if(lido == sizeof(CA)){
             //ESPERAR PELO TRINCO (BLOQUEAR)
-            int res = pthread_mutex_lock(trr->ptrinco);
-            if(res != 0){
-                printf("[ERROR] %s\n", strerror(errno));
-            }
+            pthread_mutex_lock(trr->ptrinco);
 
             if(strcmp(comm.word,"LOGIN")==0){
                 //Verifica
@@ -549,74 +569,92 @@ void *respondeUsers(void *data){
 void *gerePromotores(void *data){
     PD *tpd = data;
 
-    char c, str[MAX_SIZE];
-    int cont = 0, x = 0, nbytes;
-    char res_promotor_fifo[MAX_SIZE_FIFO];
-    int promotor_fifo;
+    int fd, cont = 0, arg = 0, nbytes, estado;
+    char str[MAX_SIZE], c;
 
-    sprintf(res_promotor_fifo, PRMTR_FIFO, tpd->promotor->pid);
-    mkfifo(res_promotor_fifo,0600);
-    promotor_fifo = open(res_promotor_fifo, O_RDONLY);
-
-    //Executa promotores na lista
-    int canal[2], res, estado;
+    int res;
+    int canal[2];
     pipe(canal);
 
-    tpd->promotor->pid = fork();
-    if(tpd->promotor->pid == 0){
-        close(0);
-        dup(canal[0]);
-        close(canal[0]);
+    res = fork();
+    if (res == 0) {
+        close(1);
+        dup(canal[1]);
         close(canal[1]);
+        close(canal[0]);
 
-        if(access(tpd->promotor->designacao,F_OK)==0)
-            execl(tpd->promotor->designacao, tpd->promotor->designacao, NULL);
+        execl(tpd->promotor->designacao, tpd->promotor->designacao, NULL);
 
-        printf("[ERRO] Não foi possível executar o promotor '%s'. Verifique se o nome do ficheiro está correto.\n",tpd->promotor->designacao);
+        printf("[ERRO] Erro no 'execl' da thread %d %s.\n",tpd->promotor->threadNumber,tpd->promotor->designacao);
         pthread_exit(NULL);
     }
-    close(canal[0]);
+
     close(canal[1]);
-    wait(&estado);
+    fflush(stdout);
+    memset(str,0,MAX_SIZE);
+    while (tpd->para == 1) {
+        pthread_mutex_lock(tpd->ptrinco);
+        res = read(canal[0], str, sizeof(str)-1);
+        if (res > 0) {
+            str[res] = '\0';
+            printf("O promotor enviou-me: %s", str);
 
-    pthread_mutex_lock(tpd->ptrinco);
-    while(tpd->para == 1) {
-        while ((nbytes = read(canal[0], &c, 1)) >= 0) { //le byte por byte
-            //printf("%c",c);
-            if (c == '\n' || nbytes == 0) {
-                str[cont++] = '\0';
-                if (sscanf(str, "%s %d %d", tpd->promocao->categoria, &tpd->promocao->desconto,
-                           &tpd->promocao->duracao) == 3) {
-                    printf("\n:::PROMOÇÃO %d:::\n", x + 1);
-                    printf("Categoria: %s\n", tpd->promocao[x].categoria);
-                    printf("Desconto: %d\n", tpd->promocao[x].desconto);
-                    printf("Duração: %d\n\n", tpd->promocao[x].duracao);
-
-                    (*tpd->nPromocoes)++;
-
-                    if (x < MAX_SIZE)
-                        x++;
-                    else
-                        break;
-
-                    memset(str, 0, MAX_SIZE);
-                    cont = 0;
-
-                } else {
-                    memset(str, 0, MAX_SIZE);
-                    cont = 0;
+            char s[MAX_SIZE];
+            cont = 0;
+            for(int itr=0; itr<strlen(str);itr++){
+                if(str[itr] != '\n' && str[itr] != ' '){
+                    s[cont++] = str[itr];
                 }
+                else{
+                    s[cont] = '\0';
+//                                printf("%s",s);
+//                                memset(s,0,MAX_SIZE);
+//                                printf("\nESPAÇO//bN\n");
+                    cont = 0;
+                    switch (arg) {
+                        case 0:{
+                            strcpy(tpd->promocao[*tpd->nPromocoes].categoria,s);
+                            memset(s,0,MAX_SIZE);
+                            break;
+                        }
+                        case 1:{
+                            tpd->promocao[*tpd->nPromocoes].desconto = atoi(s);
+                            memset(s,0,MAX_SIZE);
+                            break;
+                        }
+                        case 2:{
+                            tpd->promocao[*tpd->nPromocoes].duracao = atoi(s);
+                            memset(s,0,MAX_SIZE);
+                            arg=-1;
+                            break;
+                        }
+                        default: {
+                            printf("[ERRO] Fora dos limites de atributos.\n");
+                            break;
+                        }
+                    }
+                    arg++;
+                    if(itr == strlen(str)-1){
+                        printf("\n:::PROMOÇÃO %d:::\n",(*tpd->nPromocoes)+1);
+                        printf("Categoria: %s\n", tpd->promocao[*tpd->nPromocoes].categoria);
+                        printf("Desconto: %d\n", tpd->promocao[*tpd->nPromocoes].desconto);
+                        printf("Duração: %d\n\n", tpd->promocao[*tpd->nPromocoes].duracao);
+                        (*tpd->nPromocoes)++;
 
-                if (nbytes == 0)
-                    break;
-            } else {
-                str[cont++] = c;
+                        for(int i=0;i<*tpd->nlistIt;i++){
+                            if(strcmp(tpd->listIt->categoria,tpd->promocao->categoria)==0){
+                                tpd->listIt->promocao.duracao = tpd->promocao->duracao;
+                                tpd->listIt->promocao.desconto = tpd->promocao->desconto;
+                            }
+                        }
+                    }
+                }
             }
         }
         pthread_mutex_unlock(tpd->ptrinco);
     }
-    close(promotor_fifo);
-    unlink(res_promotor_fifo);
+    wait(&estado);
+
     pthread_exit(NULL);
 }
 
@@ -649,14 +687,14 @@ int main() {
     //Verifica se backend já está em execução
     if(access(BKND_FIFO,F_OK) == 0){
         printf("O BACKEND já está em execução!\n");
-//        exit(1);
+        exit(1);
     }
 
     //Verifica se a variavel de ambiente FUSERS existe
     if(getenv("FUSERS") == NULL){
         printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-      FUSERS = "../users.txt";
-//        exit(1);
+//      FUSERS = "../users.txt";
+        exit(1);
     }
     else{
         FUSERS = getenv("FUSERS");
@@ -666,8 +704,8 @@ int main() {
     //Verifica se a variavel de ambiente FPROMOTERS existe
     if(getenv("FPROMOTERS") == NULL){
         printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
-        FPROMOTERS = "../promotores.txt";
-//        exit(1);
+//        FPROMOTERS = "../promotores.txt";
+        exit(1);
     }
     else{
         FPROMOTERS = getenv("FPROMOTERS");
@@ -677,8 +715,8 @@ int main() {
     //Verifica se a variavel de ambiente FITEMS existe
     if(getenv("FITEMS") == NULL){
         printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-        FITEMS = "../items.txt";
-//        exit(1);
+//        FITEMS = "../items.txt";
+        exit(1);
     }
     else{
         FITEMS = getenv("FITEMS");
@@ -701,7 +739,8 @@ int main() {
     //Cria mutex - thread
     pthread_mutex_t trinco, trinco_promocoes;
     pthread_mutex_init(&trinco,NULL);
-    pthread_t threadRR, threadPromotor[MAX_PROMOTORES];
+    pthread_mutex_init(&trinco_promocoes,NULL);
+    pthread_t threadRR, threadT, threadPromotor[MAX_PROMOTORES];
     RR rrdata;
     TD tddata;
     PD pddata[MAX_PROMOTORES];
@@ -717,6 +756,20 @@ int main() {
     int ver = pthread_create(&threadRR, NULL, respondeUsers, &rrdata);
     if(ver != 0){
         printf("[ERROR] Erro ao criar a thread %d (validação de login).\n",ver);
+        exit(1);
+    }
+
+    tddata.connUt = connectedUsers;
+    tddata.nConnUt = &nConnectedUsers;
+    tddata.listIt = item_lista;
+    tddata.nlistIt = &nitems_lista;
+    tddata.ptrinco = &trinco;
+    tddata.ptrinco_promos = &trinco_promocoes;
+    tddata.para = 1;
+
+    ver = pthread_create(&threadT, NULL, incTempoInfo, &tddata);
+    if(ver != 0){
+        printf("[ERROR] Erro ao criar a thread %d (gestor de tempo).\n",ver);
         exit(1);
     }
 
@@ -787,7 +840,7 @@ int main() {
                 char promotoresLidos[MAX_PROMOTORES][MAX_SIZE];
                 int nPromotoresLidos = 0;
 
-                int pos = -1, livre = -1;
+                int livre = -1; //1ª posição livre
 
                 //Lê promotores
                 fdPromo = open(FPROMOTERS, O_RDONLY);
@@ -805,6 +858,15 @@ int main() {
                             if(sscanf(str,"%s",promotoresLidos[i]) == 1){
                                 //printf("%d %s\n",i+1,promotoresLidos[i]);
                                 nPromotoresLidos++;
+
+                                //--------------------TESTES----------------------------------------------------------
+//                                if(i == 0)
+//                                strcpy(promotoresLidos[i],"../promospot");
+//                                if(i == 1)
+//                                strcpy(promotoresLidos[i],"../promotor_oficial");
+//                                if(i == 2)
+//                                strcpy(promotoresLidos[i],"../black_friday");
+                                //------------------------------------------------------------------------------------
 
                                 if(i < MAX_PROMOTORES)
                                     i++;
@@ -834,6 +896,7 @@ int main() {
                     int comp = 0;
                     for(i=0; i < npromotor_lista; i++){
                         for(j=0; j < nPromotoresLidos; j++){
+
                             if(promotor_lista[j].designacao != promotoresLidos[i]){
                                 comp++;
                             }
@@ -870,24 +933,27 @@ int main() {
 
                 //Cria thread para executar promotores na lista
                 for(i=0; i<nPromotoresLidos; i++){
+                    if(access(promotoresLidos[i],F_OK)!=0) {
+                        printf("[ERRO] Não foi possível executar o promotor '%s'. Verifique se o nome do ficheiro está correto.\n",
+                               promotoresLidos[i]);
+                        continue;
+                    }
                     for(j=0; j<MAX_PROMOTORES; j++){
-                        if(livre == -1 && promotor_lista[j].pid == 0){
+                        if(livre == -1 && strcmp(promotor_lista[j].designacao,"") == 0){
                             livre = j;
-                        }
-                        if(pos == -1 && strcmp(promotor_lista[j].designacao,promotoresLidos[i])==0){
-                            pos = j;
+                            break;
                         }
                     }
-                    if(pos == -1 && livre >= 0){
-                        strcpy(promotor_lista[livre].designacao,promotoresLidos[livre]);
+                    if(livre >= 0){
+                        //Lança promotor
+                        strcpy(promotor_lista[livre].designacao,promotoresLidos[i]);
                         promotor_lista[livre].threadNumber = livre;
 
-                        pddata[0].promotor->threadNumber = 10;
-
-                        strcpy(pddata[livre].promotor->designacao,promotor_lista[livre].designacao);
-                        pddata[livre].promotor->threadNumber = promotor_lista[livre].threadNumber;
+                        pddata[livre].promotor = &promotor_lista[livre];
                         pddata[livre].promocao = promo;
                         pddata[livre].nPromocoes = &npromos;
+                        pddata[livre].listIt = item_lista;
+                        pddata[livre].nlistIt = &nitems_lista;
                         pddata[livre].para = 1;
                         pddata[livre].ptrinco = &trinco_promocoes;
 
@@ -897,6 +963,8 @@ int main() {
                             break;
                         }
                     }
+
+                    livre = -1;
                 }
 
                 close(fdPromo);

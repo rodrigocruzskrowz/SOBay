@@ -50,7 +50,7 @@ struct Item{
     int tempo;
     char vendedor[MAX_SIZE];
     char licitador[MAX_SIZE];
-    Promo promo;
+    Promo promocao;
 };
 
 typedef struct Cliente_Administrador CA;

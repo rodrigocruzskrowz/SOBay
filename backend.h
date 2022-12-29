@@ -18,14 +18,17 @@ int PROX_ID;
 
 typedef struct ThreadTempoData TD;
 struct ThreadTempoData{
-    Item it;
+    User *connUt;
+    int *nConnUt;
+    Item *listIt;
+    int *nlistIt;
+    pthread_mutex_t *ptrinco;
+    pthread_mutex_t *ptrinco_promos;
     int para;
 };
 
 typedef struct ThreadRequestRespondeData RR;
 struct ThreadRequestRespondeData{
-    CA ca;
-    User ut;
     User *connUt;
     int *nConnUt;
     Item *listIt;
@@ -47,6 +50,8 @@ struct ThreadPromotorData{
     Promotor *promotor;
     Promo *promocao;
     int *nPromocoes;
+    Item *listIt;
+    int *nlistIt;
     pthread_mutex_t *ptrinco;
     int para;
 };

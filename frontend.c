@@ -104,6 +104,10 @@ int main(int argc, char *argv[])
                         printf("[INFO] O BACKEND informou que vai encerrar. A terminar plataforma...\n\n");
                         //TODO: TERMINAR FRONTEND
                     }
+
+                    else if(strcmp(comm.word,"ITEXPIRED") == 0){
+                        printf("\n[INFO] O item '%s' expirou!\n\n",comm.secWord);
+                    }
                 }
 
                 //TODO: COLOCAR AQUI TODAS AS RESPOSTAS AOS COMANDOS
@@ -634,6 +638,7 @@ int main(int argc, char *argv[])
                         if(n == sizeof(CA)){
                             printf("[INFO] Avisei que me ia desconectar.\n\n");
                         }
+                        break;
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
