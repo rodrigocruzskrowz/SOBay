@@ -12,6 +12,7 @@ void removeUserConnection(User ut, User *connUt, int *nusers){
     for(int i=0; i<*nusers; i++){
         if(encontrado == 1){
             connUt[i-1] = connUt[i];
+            printf("[INFO] Utilizador '%s' removido.\n",ut.nome);
             continue;
         }
         if(connUt[i].pid == ut.pid){
@@ -593,7 +594,6 @@ void *gerePromotores(void *data){
     fflush(stdout);
     memset(str,0,MAX_SIZE);
     while (tpd->para == 1) {
-        pthread_mutex_lock(tpd->ptrinco);
         res = read(canal[0], str, sizeof(str)-1);
         if (res > 0) {
             str[res] = '\0';
@@ -601,6 +601,7 @@ void *gerePromotores(void *data){
 
             char s[MAX_SIZE];
             cont = 0;
+            pthread_mutex_lock(tpd->ptrinco);
             for(int itr=0; itr<strlen(str);itr++){
                 if(str[itr] != '\n' && str[itr] != ' '){
                     s[cont++] = str[itr];
@@ -667,6 +668,18 @@ void imprimeConnectedUsers(User *dados, int total){
     }
     else{
         printf("[INFO] Não existem atualmente utilizadores ligados.\n");
+    }
+}
+
+void imprimeActivePromoters(Promotor *dados, int total){
+    if(total > 0){
+        printf("\n[INFO] Promotores ativos: %d\n",total);
+        for(int i=0; i<total; i++){
+            printf(" Promotor %d: %s\n", i+1,dados[i].designacao);
+        }
+    }
+    else{
+        printf("[INFO] Não existem promotores ativos.\n");
     }
 }
 
@@ -817,9 +830,24 @@ int main() {
         } else if (strcmp(comando[0], "kick") == 0) {
             if (c == 2) {
                 //Verificar se utilizador existe
+                for(int i=0;i<nConnectedUsers;i++){
+                    if(strcmp(connectedUsers[i].nome,comando[1])==0){
+                        CA comm;
+                        char res_cli_fifo[MAX_SIZE_FIFO];
+                        int fd_cli_fifo;
+                        sprintf(res_cli_fifo, FRND_FIFO, connectedUsers[i].pid);
+                        fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                        strcpy(comm.word,"UTKICK");
+                        write(fd_cli_fifo, &comm, sizeof(CA));
+                        close(fd_cli_fifo);
+
+                        removeUserConnection(comm.ut,connectedUsers,&nConnectedUsers);
+                    }
+                }
 
                 //Expulsar o utilizador
-                printf("Comando válido!\n");
+//                printf("Comando válido!\n");
+
             } else {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\tkick <username>\n\n");
@@ -827,7 +855,8 @@ int main() {
         } else if (strcmp(comando[0], "prom") == 0) {
             if (c == 1) {
                 //Listar promotores ativos
-                printf("Comando válido!\n");
+//                printf("Comando válido!\n");
+                imprimeActivePromoters(promotor_lista,npromotor_lista);
             } else {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\tprom\n\n");
@@ -892,9 +921,17 @@ int main() {
                 }
 
                 //Verifica se está em execução
+                int reorganiza = 0;
                 if(npromotor_lista != 0){
                     int comp = 0;
                     for(i=0; i < npromotor_lista; i++){
+
+                        if(reorganiza == 1) {
+                            item_lista[i - 1] = item_lista[i];
+                            nitems_lista--;
+                            reorganiza = 0;
+                        }
+
                         for(j=0; j < nPromotoresLidos; j++){
 
                             if(promotor_lista[j].designacao != promotoresLidos[i]){
@@ -909,26 +946,21 @@ int main() {
                                 int fd_prom;
                                 char res_prom_fifo[MAX_SIZE_FIFO];
 
-                                pddata[promotor_lista[j].threadNumber].para = 0;
-                                strcpy(pddata[promotor_lista[j].threadNumber].promocao->categoria,"SHUTDOWN");
-                                sprintf(res_prom_fifo, PRMTR_FIFO, pddata[promotor_lista[j].threadNumber].promotor->pid);
-                                fd_prom = open(res_prom_fifo, O_WRONLY);
-                                write(fd_prom, &pddata, sizeof(PD));
-                                close(fd_prom);
-
-                                int n = write(fd_prom,&pddata,sizeof(PD));
-                                if(n == sizeof(PD)){
-                                    printf("[INFO] Enviei %s\n",pddata[promotor_lista[j].threadNumber].promocao->categoria);
-                                }
+                                union sigval sv;
+                                sv.sival_int = 0;
+                                sigqueue(pidPromotor, SIGUSR1, sv);
 
                                 pthread_join(threadPromotor[promotor_lista[j].threadNumber],NULL);
 
                                 //Remove da lista
-                                for(int itr=i+1; itr < nPromotoresLidos; itr++)
-                                    strcpy(promotoresLidos[itr-1],promotoresLidos[itr]);
+                                reorganiza = 1;
                             }
                         }
                     }
+                }
+
+                if(reorganiza == 1){
+                    nitems_lista--;
                 }
 
                 //Cria thread para executar promotores na lista
@@ -948,6 +980,7 @@ int main() {
                         //Lança promotor
                         strcpy(promotor_lista[livre].designacao,promotoresLidos[i]);
                         promotor_lista[livre].threadNumber = livre;
+                        npromotor_lista++;
 
                         pddata[livre].promotor = &promotor_lista[livre];
                         pddata[livre].promocao = promo;
@@ -1019,23 +1052,20 @@ int main() {
         printf("%s %d\n",connectedUsers[i].nome,connectedUsers[i].saldo);
     }
 
-    //Termina thread de promotores
-    for(int i=0;i<MAX_PROMOTORES;i++){
+    //Termina threads dos promotores
+    for(int i=0;i<npromotor_lista;i++){
         int fdPromo;
         char res_prom_fifo[MAX_SIZE_FIFO];
 
-        pddata[i].para = 0;
-        strcpy(pddata[i].promocao->categoria,"SHUTDOWN");
-        sprintf(res_prom_fifo, PRMTR_FIFO, pddata[i].promotor->pid);
-        fdPromo = open(res_prom_fifo, O_WRONLY);
-        write(fdPromo, &pddata, sizeof(PD));
-        close(fdPromo);
+        union sigval sv;
+        sv.sival_int = 0;
+        sigqueue(pidPromotor, SIGUSR1, sv);
 
         int n = write(fd_sv_fifo,&pddata,sizeof(PD));
         if(n == sizeof(CA)){
             printf("[INFO] Enviei %s\n",pddata[i].promocao->categoria);
         }
-        pthread_join(threadPromotor[i], NULL);
+        pthread_join(threadPromotor[promotor_lista[i].threadNumber], NULL);
     }
 
     //Termina thread request/response
