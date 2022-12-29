@@ -33,6 +33,13 @@ struct Utilizador{
     int pid;
 };
 
+typedef struct Promocao Promo;
+struct Promocao{
+    char categoria[MAX_SIZE];
+    int desconto;
+    int duracao;
+};
+
 typedef struct Item Item;
 struct Item{
     int id;
@@ -43,18 +50,11 @@ struct Item{
     int tempo;
     char vendedor[MAX_SIZE];
     char licitador[MAX_SIZE];
-};
-
-typedef struct Promocao promocao;
-struct Promocao{
-    char categoria[MAX_SIZE];
-    int promo;
-    int tempo;
+    Promo promocao;
 };
 
 typedef struct Cliente_Administrador CA;
 struct Cliente_Administrador{
-    int pid;
     char word[MAX_SIZE];
     char secWord[MAX_SIZE];
     int number;

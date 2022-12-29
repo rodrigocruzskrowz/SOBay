@@ -6,6 +6,8 @@
 #include "struct.h"
 #include <pthread.h>
 
+#define PRMTR_FIFO "promotor_%d"
+
 char *FUSERS;
 char *FITEMS;
 char *FPROMOTERS;
@@ -14,26 +16,19 @@ char *FINIT = "init.txt";
 int TEMPO;
 int PROX_ID;
 
-typedef struct ThreadLogData LogData;
-struct ThreadLogData{
-    User ut;
+typedef struct ThreadTempoData TD;
+struct ThreadTempoData{
     User *connUt;
     int *nConnUt;
-    int fd_sv_fifo;
+    Item *listIt;
+    int *nlistIt;
     pthread_mutex_t *ptrinco;
-    int para;
-};
-
-typedef struct ThreadTempoData Tempo;
-struct ThreadTempoData{
-    Item it;
+    pthread_mutex_t *ptrinco_promos;
     int para;
 };
 
 typedef struct ThreadRequestRespondeData RR;
 struct ThreadRequestRespondeData{
-    CA ca;
-    User ut;
     User *connUt;
     int *nConnUt;
     Item *listIt;
@@ -43,13 +38,47 @@ struct ThreadRequestRespondeData{
     int para;
 };
 
-#define NUM_OF_THREADS 1
+typedef struct Promotor Promotor;
+struct Promotor{
+    int pid;
+    int threadNumber;
+    char designacao[MAX_SIZE];
+};
 
-void addUserConnection(User ut, User *connUt, int *nusers);
-void stopReadPromotor(int sign);
+typedef struct ThreadPromotorData PD;
+struct ThreadPromotorData{
+    Promotor *promotor;
+    Promo *promocao;
+    int *nPromocoes;
+    Item *listIt;
+    int *nlistIt;
+    pthread_mutex_t *ptrinco;
+    int para;
+};
+
+void stopReadPromotor(int sign, siginfo_t *info);
 void stopValidatingLogs(int sign);
+
+//Adiciona nova conexão
+void addUserConnection(User ut, User *connUt, int *nusers);
+
+//Remove conexão existente
+void removeUserConnection(User ut, User *connUt, int *nusers);
+
+//Carrega/Cria estado da aplicação
 void initPlataforma();
+
+//Lê ficheiro de items
+//Retorna: 1-Sucesso; 0-Erro;
 int readItemsFile(Item *item_lista, int *nitems_lista);
+
+//Recebe os pedidos dos clientes e responde-lhes
 void *respondeUsers(void *data);
+
+//Recebe dados dos promotores
+void *gerePromotores(void *data);
+
+//Imprime lista de utilizadores com conexão válida estabelecida
+void imprimeConnectedUsers(User *dados, int total);
 
 #endif //SOBay_BACKEND_H

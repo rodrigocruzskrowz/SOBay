@@ -1,16 +1,30 @@
 #include "backend.h"
 
 int parar = 0;
-int pidf;
+int pidPromotor;
 
 void addUserConnection(User ut, User *connUt, int *nusers){
-    connUt[*nusers++] = ut;
+    connUt[(*nusers)++] = ut;
 }
 
-void stopReadPromotor(int sign){
-    union sigval val;
-    val.sival_int = 1;
-    sigqueue(pidf,SIGUSR1,val);
+void removeUserConnection(User ut, User *connUt, int *nusers){
+    int encontrado = 0;
+    for(int i=0; i<*nusers; i++){
+        if(encontrado == 1){
+            connUt[i-1] = connUt[i];
+            continue;
+        }
+        if(connUt[i].pid == ut.pid){
+            encontrado = 1;
+        }
+    }
+    (*nusers)--;
+}
+
+void stopReadPromotor(int sign, siginfo_t *info){
+    union sigval sv;
+    sv.sival_int = 1;
+    sigqueue(pidPromotor, SIGUSR1, sv);
     signal(SIGINT,SIG_DFL);
     parar = 1;
 }
@@ -32,7 +46,7 @@ void initPlataforma(){
         char c[MAX_SIZE];
         int tempo, proxID;
         int nbytes;
-        while((nbytes = read(fd_init,&c,sizeof(c)-1)) > 0){
+        while((nbytes = read(fd_init,&c,sizeof(c))) > 0){
             if(sscanf(c,"%d %d",&tempo,&proxID) == 2){
                 TEMPO = tempo;
                 PROX_ID = proxID;
@@ -47,8 +61,6 @@ void initPlataforma(){
     close(fd_init);
 }
 
-//Lê ficheiro de items
-//Retorna: 1-Sucesso; 0-Erro;
 int readItemsFile(Item *item_lista, int *nitems_lista){
     int fd, cont = 0, arg = 0, nbytes, res, i = 0;
     char str[MAX_SIZE];
@@ -113,22 +125,45 @@ int readItemsFile(Item *item_lista, int *nitems_lista){
 }
 
 void *incTempoInfo(void *data){
-    Tempo *td = data;
+    TD *ttd = data;
 
-    sleep(1);
-
-    while(td->para == 1){
-
+    while(ttd->para == 1){
         //Incrementa tempo
+        sleep(1);
+        pthread_mutex_lock(ttd->ptrinco);
+        pthread_mutex_lock(ttd->ptrinco_promos);
         TEMPO++;
 
         //Decrementa tempo de items em leilao
+        for(int i=0;i<*ttd->nlistIt;i++){
+            //Decrementa tempo do item
+            (ttd->listIt[i].tempo)--;
 
-        //Decrementa tempo de promoções (?)
+            //Decrementa tempo da promoções (?)
+            if(ttd->listIt[i].promocao.duracao > 0)
+                (ttd->listIt[i].promocao.duracao)--;
 
-        //Avisa todos os utilizadores de um acontecimento
-        //(Item X comprado; Item Y Acabou o tempo;...)
+            if(ttd->listIt[i].tempo == 0){
+                //Avisa todos os utilizadores que o item X expirou
+                for(int j=0;j<*ttd->nConnUt;j++){
+                    char res_cli_fifo[MAX_SIZE_FIFO];
+                    int fd_cli_fifo;
+                    CA comm;
+                    sprintf(res_cli_fifo, FRND_FIFO, ttd->connUt->pid);
+                    fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                    strcpy(comm.word,"ITEXPIRED");
+                    strcpy(comm.secWord,ttd->listIt[i-1].nome);
+                    write(fd_cli_fifo, &comm, sizeof(CA));
+                    close(fd_cli_fifo);
+                }
 
+                ttd->listIt[i] = ttd->listIt[i+1];
+                (*ttd->nlistIt)--;
+            }
+        }
+
+        pthread_mutex_unlock(ttd->ptrinco_promos);
+        pthread_mutex_unlock(ttd->ptrinco);
     }
     pthread_exit(NULL);
 }
@@ -144,10 +179,7 @@ void *respondeUsers(void *data){
         int lido = read(trr->fd_sv_fifo,&comm,sizeof(CA));
         if(lido == sizeof(CA)){
             //ESPERAR PELO TRINCO (BLOQUEAR)
-            int res = pthread_mutex_lock(trr->ptrinco);
-            if(res != 0){
-                printf("[ERROR] %s\n", strerror(errno));
-            }
+            pthread_mutex_lock(trr->ptrinco);
 
             if(strcmp(comm.word,"LOGIN")==0){
                 //Verifica
@@ -380,6 +412,7 @@ void *respondeUsers(void *data){
             }
 
             else if(strcmp(comm.word,"BUY")==0){
+                //TODO: Alterar para utilizar a lista de utilizadores e não fazer a leitura diretamente do ficheiro.
                 //word-IDENTIFICATION WORD; secWord-USERNAME; number-ITEM ID; secNumber-VALOR
                 int encontrou = 0;
                 int compra = 0;
@@ -517,12 +550,123 @@ void *respondeUsers(void *data){
 
                 close(fd_cli_fifo);
             }
+
+            else if(strcmp(comm.word,"EXIT")==0){
+                printf("[INFO] O cliente %d informou que ia sair.\n",comm.ut.pid);
+                removeUserConnection(comm.ut,trr->connUt,trr->nConnUt);
+            }
+
             else if(strcmp(comm.word,"SHUTDOWN")==0){
                 printf("[INFO] Pedido de encerramento recebido.\n");
             }
         }
         //ESPERAR PELO TRINCO (DESBLOQUEAR)
         pthread_mutex_unlock(trr->ptrinco);
+    }
+    pthread_exit(NULL);
+}
+
+void *gerePromotores(void *data){
+    PD *tpd = data;
+
+    int fd, cont = 0, arg = 0, nbytes, estado;
+    char str[MAX_SIZE], c;
+
+    int res;
+    int canal[2];
+    pipe(canal);
+
+    res = fork();
+    if (res == 0) {
+        close(1);
+        dup(canal[1]);
+        close(canal[1]);
+        close(canal[0]);
+
+        execl(tpd->promotor->designacao, tpd->promotor->designacao, NULL);
+
+        printf("[ERRO] Erro no 'execl' da thread %d %s.\n",tpd->promotor->threadNumber,tpd->promotor->designacao);
+        pthread_exit(NULL);
+    }
+
+    close(canal[1]);
+    fflush(stdout);
+    memset(str,0,MAX_SIZE);
+    while (tpd->para == 1) {
+        pthread_mutex_lock(tpd->ptrinco);
+        res = read(canal[0], str, sizeof(str)-1);
+        if (res > 0) {
+            str[res] = '\0';
+            printf("O promotor enviou-me: %s", str);
+
+            char s[MAX_SIZE];
+            cont = 0;
+            for(int itr=0; itr<strlen(str);itr++){
+                if(str[itr] != '\n' && str[itr] != ' '){
+                    s[cont++] = str[itr];
+                }
+                else{
+                    s[cont] = '\0';
+//                                printf("%s",s);
+//                                memset(s,0,MAX_SIZE);
+//                                printf("\nESPAÇO//bN\n");
+                    cont = 0;
+                    switch (arg) {
+                        case 0:{
+                            strcpy(tpd->promocao[*tpd->nPromocoes].categoria,s);
+                            memset(s,0,MAX_SIZE);
+                            break;
+                        }
+                        case 1:{
+                            tpd->promocao[*tpd->nPromocoes].desconto = atoi(s);
+                            memset(s,0,MAX_SIZE);
+                            break;
+                        }
+                        case 2:{
+                            tpd->promocao[*tpd->nPromocoes].duracao = atoi(s);
+                            memset(s,0,MAX_SIZE);
+                            arg=-1;
+                            break;
+                        }
+                        default: {
+                            printf("[ERRO] Fora dos limites de atributos.\n");
+                            break;
+                        }
+                    }
+                    arg++;
+                    if(itr == strlen(str)-1){
+                        printf("\n:::PROMOÇÃO %d:::\n",(*tpd->nPromocoes)+1);
+                        printf("Categoria: %s\n", tpd->promocao[*tpd->nPromocoes].categoria);
+                        printf("Desconto: %d\n", tpd->promocao[*tpd->nPromocoes].desconto);
+                        printf("Duração: %d\n\n", tpd->promocao[*tpd->nPromocoes].duracao);
+                        (*tpd->nPromocoes)++;
+
+                        for(int i=0;i<*tpd->nlistIt;i++){
+                            if(strcmp(tpd->listIt->categoria,tpd->promocao->categoria)==0){
+                                tpd->listIt->promocao.duracao = tpd->promocao->duracao;
+                                tpd->listIt->promocao.desconto = tpd->promocao->desconto;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        pthread_mutex_unlock(tpd->ptrinco);
+    }
+    wait(&estado);
+
+    pthread_exit(NULL);
+}
+
+void imprimeConnectedUsers(User *dados, int total){
+    if(total > 0){
+        printf("\n[INFO] Utilizadores ligados: %d\n",total);
+        for(int i=0; i<total; i++){
+            printf(" Utilizador %d: %s\n", i+1,dados[i].nome);
+        }
+    }
+    else{
+        printf("[INFO] Não existem atualmente utilizadores ligados.\n");
     }
 }
 
@@ -534,19 +678,23 @@ int main() {
     int nConnectedUsers = 0;
     Item item_lista[MAX_ITEMS];
     int nitems_lista = 0;
+    Promotor promotor_lista[MAX_PROMOTORES];
+    int npromotor_lista = 0;
+    Promo promo[MAX_SIZE];
+    int npromos = 0;
     int fd_sv_fifo;
 
     //Verifica se backend já está em execução
     if(access(BKND_FIFO,F_OK) == 0){
         printf("O BACKEND já está em execução!\n");
-//        exit(1);
+        exit(1);
     }
 
     //Verifica se a variavel de ambiente FUSERS existe
     if(getenv("FUSERS") == NULL){
         printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-      FUSERS = "../users.txt";
-//        exit(1);
+//      FUSERS = "../users.txt";
+        exit(1);
     }
     else{
         FUSERS = getenv("FUSERS");
@@ -556,8 +704,8 @@ int main() {
     //Verifica se a variavel de ambiente FPROMOTERS existe
     if(getenv("FPROMOTERS") == NULL){
         printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
-        FPROMOTERS = "../promotores.txt";
-//        exit(1);
+//        FPROMOTERS = "../promotores.txt";
+        exit(1);
     }
     else{
         FPROMOTERS = getenv("FPROMOTERS");
@@ -567,8 +715,8 @@ int main() {
     //Verifica se a variavel de ambiente FITEMS existe
     if(getenv("FITEMS") == NULL){
         printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-        FITEMS = "../items.txt";
-//        exit(1);
+//        FITEMS = "../items.txt";
+        exit(1);
     }
     else{
         FITEMS = getenv("FITEMS");
@@ -589,10 +737,13 @@ int main() {
     fd_sv_fifo = open(BKND_FIFO,O_RDWR);
 
     //Cria mutex - thread
-    pthread_mutex_t trinco;
+    pthread_mutex_t trinco, trinco_promocoes;
     pthread_mutex_init(&trinco,NULL);
-    pthread_t thread[NUM_OF_THREADS];
+    pthread_mutex_init(&trinco_promocoes,NULL);
+    pthread_t threadRR, threadT, threadPromotor[MAX_PROMOTORES];
     RR rrdata;
+    TD tddata;
+    PD pddata[MAX_PROMOTORES];
 
     rrdata.connUt = connectedUsers;
     rrdata.nConnUt = &nConnectedUsers;
@@ -602,9 +753,23 @@ int main() {
     rrdata.fd_sv_fifo = fd_sv_fifo;
     rrdata.para = 1;
 
-    int ver = pthread_create(&thread[0],NULL,respondeUsers,&rrdata);
-    if(ver){
+    int ver = pthread_create(&threadRR, NULL, respondeUsers, &rrdata);
+    if(ver != 0){
         printf("[ERROR] Erro ao criar a thread %d (validação de login).\n",ver);
+        exit(1);
+    }
+
+    tddata.connUt = connectedUsers;
+    tddata.nConnUt = &nConnectedUsers;
+    tddata.listIt = item_lista;
+    tddata.nlistIt = &nitems_lista;
+    tddata.ptrinco = &trinco;
+    tddata.ptrinco_promos = &trinco_promocoes;
+    tddata.para = 1;
+
+    ver = pthread_create(&threadT, NULL, incTempoInfo, &tddata);
+    if(ver != 0){
+        printf("[ERROR] Erro ao criar a thread %d (gestor de tempo).\n",ver);
         exit(1);
     }
 
@@ -633,7 +798,9 @@ int main() {
         if (strcmp(comando[0], "users") == 0) {
             if (c == 1) {
                 //Listar utilizadores a usar a plataforma
-                printf("Comando válido!\n");
+//                printf("Comando válido!\n");
+                imprimeConnectedUsers(connectedUsers,nConnectedUsers);
+
             } else {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\tusers\n\n");
@@ -641,7 +808,8 @@ int main() {
         } else if (strcmp(comando[0], "list") == 0) {
             if (c == 1) {
                 //Listar items à venda
-                printf("Comando válido!\n");
+//                printf("Comando válido!\n");
+                imprimeItems(item_lista,nitems_lista);
             } else {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\tlist\n\n");
@@ -667,12 +835,146 @@ int main() {
         } else if (strcmp(comando[0], "reprom") == 0) {
             if (c == 1) {
                 //Atualizar promotores
-                printf("Comando válido!\n");
+//                printf("Comando válido!\n");
+                int fdPromo, cont = 0, nbytes;
+                char promotoresLidos[MAX_PROMOTORES][MAX_SIZE];
+                int nPromotoresLidos = 0;
+
+                int livre = -1; //1ª posição livre
+
+                //Lê promotores
+                fdPromo = open(FPROMOTERS, O_RDONLY);
+                if(fdPromo==-1){
+                    printf("\n[ERROR] Ficheiro de promotores não encontrado.\n");
+                    break;
+                }
+                else{
+                    i = 0;
+                    memset(str,0,MAX_SIZE);
+                    while((nbytes = read(fdPromo,&c,1)) >= 0){ //le byte por byte
+                        //printf("%c",c);
+                        if(c == '\n' || nbytes == 0){
+                            str[cont++]='\0';
+                            if(sscanf(str,"%s",promotoresLidos[i]) == 1){
+                                //printf("%d %s\n",i+1,promotoresLidos[i]);
+                                nPromotoresLidos++;
+
+                                //--------------------TESTES----------------------------------------------------------
+//                                if(i == 0)
+//                                strcpy(promotoresLidos[i],"../promospot");
+//                                if(i == 1)
+//                                strcpy(promotoresLidos[i],"../promotor_oficial");
+//                                if(i == 2)
+//                                strcpy(promotoresLidos[i],"../black_friday");
+                                //------------------------------------------------------------------------------------
+
+                                if(i < MAX_PROMOTORES)
+                                    i++;
+                                else
+                                    break;
+
+                                memset(str,0,MAX_SIZE);
+                                cont = 0;
+
+                            }
+                            else{
+                                memset(str,0,MAX_SIZE);
+                                cont = 0;
+                            }
+
+                            if(nbytes == 0)
+                                break;
+                        }
+                        else{
+                            str[cont++] = c;
+                        }
+                    }
+                }
+
+                //Verifica se está em execução
+                if(npromotor_lista != 0){
+                    int comp = 0;
+                    for(i=0; i < npromotor_lista; i++){
+                        for(j=0; j < nPromotoresLidos; j++){
+
+                            if(promotor_lista[j].designacao != promotoresLidos[i]){
+                                comp++;
+                            }
+
+                            if(comp == npromotor_lista){
+                                comp = 0;
+
+                                //Encerra promotor
+                                //TODO: ENCERRAR A THREAD
+                                int fd_prom;
+                                char res_prom_fifo[MAX_SIZE_FIFO];
+
+                                pddata[promotor_lista[j].threadNumber].para = 0;
+                                strcpy(pddata[promotor_lista[j].threadNumber].promocao->categoria,"SHUTDOWN");
+                                sprintf(res_prom_fifo, PRMTR_FIFO, pddata[promotor_lista[j].threadNumber].promotor->pid);
+                                fd_prom = open(res_prom_fifo, O_WRONLY);
+                                write(fd_prom, &pddata, sizeof(PD));
+                                close(fd_prom);
+
+                                int n = write(fd_prom,&pddata,sizeof(PD));
+                                if(n == sizeof(PD)){
+                                    printf("[INFO] Enviei %s\n",pddata[promotor_lista[j].threadNumber].promocao->categoria);
+                                }
+
+                                pthread_join(threadPromotor[promotor_lista[j].threadNumber],NULL);
+
+                                //Remove da lista
+                                for(int itr=i+1; itr < nPromotoresLidos; itr++)
+                                    strcpy(promotoresLidos[itr-1],promotoresLidos[itr]);
+                            }
+                        }
+                    }
+                }
+
+                //Cria thread para executar promotores na lista
+                for(i=0; i<nPromotoresLidos; i++){
+                    if(access(promotoresLidos[i],F_OK)!=0) {
+                        printf("[ERRO] Não foi possível executar o promotor '%s'. Verifique se o nome do ficheiro está correto.\n",
+                               promotoresLidos[i]);
+                        continue;
+                    }
+                    for(j=0; j<MAX_PROMOTORES; j++){
+                        if(livre == -1 && strcmp(promotor_lista[j].designacao,"") == 0){
+                            livre = j;
+                            break;
+                        }
+                    }
+                    if(livre >= 0){
+                        //Lança promotor
+                        strcpy(promotor_lista[livre].designacao,promotoresLidos[i]);
+                        promotor_lista[livre].threadNumber = livre;
+
+                        pddata[livre].promotor = &promotor_lista[livre];
+                        pddata[livre].promocao = promo;
+                        pddata[livre].nPromocoes = &npromos;
+                        pddata[livre].listIt = item_lista;
+                        pddata[livre].nlistIt = &nitems_lista;
+                        pddata[livre].para = 1;
+                        pddata[livre].ptrinco = &trinco_promocoes;
+
+                        ver = pthread_create(&threadPromotor[livre], NULL, gerePromotores, &pddata[livre]);
+                        if(ver != 0){
+                            printf("[ERROR] Erro ao criar a thread %d (execução do promotor).\n",ver);
+                            break;
+                        }
+                    }
+
+                    livre = -1;
+                }
+
+                close(fdPromo);
             } else {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\treprom\n\n");
             }
-        } else if (strcmp(comando[0], "cancel") == 0) {
+        }
+
+        else if (strcmp(comando[0], "cancel") == 0) {
             if (c == 2) {
                 //Verificar se o executavel existe
 
@@ -682,10 +984,22 @@ int main() {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\tcancel <nome-do-executável-do-promotor>\n\n");
             }
-        } else if (strcmp(comando[0], "close") == 0) {
-            if (c == 1) {
-                //Notifica frontends
+        }
 
+        else if (strcmp(comando[0], "close") == 0) {
+            if (c == 1) {
+                CA comm;
+                char res_cli_fifo[MAX_SIZE_FIFO];
+                int fd_cli_fifo;
+
+                //Notifica frontends
+                strcpy(comm.word,"SHUTDOWNALL");
+                for(int i=0; i<nConnectedUsers; i++){
+                    sprintf(res_cli_fifo, FRND_FIFO, connectedUsers->pid);
+                    fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+                    write(fd_cli_fifo,&comm,sizeof(CA));
+                    close(fd_cli_fifo);
+                }
 
                 //Encerra plataforma
                 break;
@@ -701,203 +1015,40 @@ int main() {
         i = 0, j = 0, c = 0;
     }
 
-    int opc;
-    int estado;
-    do {
-        printf("\n  ::::TEMPORARIO::::\n");
-        printf("Deseja testar qual opção?\n");
-        printf("2-Execução do promotor\n");
-        printf("3-Utilizadores\n");
-        printf("6-Lista de items\n");
-        printf("0-Terminar\n");
-        printf("Opção: ");
-        scanf("%d", &opc);
-        switch (opc) {
-            case 2: {
-
-
-                int fd, cont = 0, arg = 0, nbytes, i = 0, j = 0, ic = 0;
-                char str[MAX_SIZE], c;
-                char promotorList[MAX_PROMOTORES][MAX_SIZE];
-
-                fd = open(FPROMOTERS, O_RDONLY);
-                if(fd==-1){
-                    printf("\nFicheiro de promotores não encontrado!\n");
-                    break;
-                }
-                else {
-                    while((nbytes = read(fd,&c,1)) > 0){ //le byte por byte
-                        //printf("%c",c);
-                        if(c == ' ' || c == '\n'){
-                            promotorList[i][j] ='\0';
-                            j = 0;
-
-                            if(c == '\n'){
-                                if(i < MAX_PROMOTORES)
-                                    i++;
-                            }
-
-                            memset(str,0,MAX_SIZE);
-                            cont = 0;
-                        }
-                        else{
-                            promotorList[i][j] = c;
-                            j++;
-                        }
-                    }
-                }
-
-                int res;
-                int canal[2];
-                pipe(canal);
-
-                res = fork();
-                if (res == 0) {
-                    close(1);
-                    dup(canal[1]);
-                    close(canal[1]);
-                    close(canal[0]);
-                    char o[MAX_SIZE];
-                    if(access(promotorList[0],F_OK)==0){
-                        execl(promotorList[0], promotorList[0], NULL);
-                    }
-
-                    printf("[ERRO] Não foi possível executar o promotor. Verifique se o nome do ficheiro está correto. '%s'\n",promotorList[0]);
-                    exit(1);
-                }
-
-                close(canal[1]);
-                pidf = res;
-                parar = 0;
-                struct sigaction sa;
-                sa.sa_handler = stopReadPromotor;
-                sa.sa_flags = SA_SIGINFO;
-                sigaction(SIGINT,&sa,NULL);
-
-                promocao promo[MAX_SIZE];
-                i=0;
-                while (parar == 0) {
-                    res = read(canal[0], str, sizeof(str)-1);
-                    if (res > 0) {
-                        str[res] = '\0';
-                        printf("O promotor enviou-me: %s", str);
-
-                        char s[MAX_SIZE];
-                        cont = 0;
-                        for(int itr=0; itr<strlen(str);itr++){
-                            if(str[itr] != '\n' && str[itr] != ' '){
-                                s[cont++] = str[itr];
-                            }
-                            else{
-                                s[cont] = '\0';
-                                cont = 0;
-                                switch (arg) {
-                                    case 0:{
-                                        strcpy(promo[i].categoria,s);
-                                        memset(s,0,MAX_SIZE);
-                                        break;
-                                    }
-                                    case 1:{
-                                        promo[i].promo = atoi(s);
-                                        memset(s,0,MAX_SIZE);
-                                        break;
-                                    }
-                                    case 2:{
-                                        promo[i].tempo = atoi(s);
-                                        memset(s,0,MAX_SIZE);
-                                        arg=-1;
-                                        break;
-                                    }
-                                    default: {
-                                        printf("[ERRO] Fora dos limites de atributos.\n");
-                                        break;
-                                    }
-                                }
-                                arg++;
-                                if(itr == strlen(str)-1){
-                                    printf("\n:::PROMOÇÃO %d:::\n",i+1);
-                                    printf("Categoria: %s\n", promo[i].categoria);
-                                    printf("Promoção: %d\n", promo[i].promo);
-                                    printf("Tempo: %d\n\n", promo[i].tempo);
-                                    i++;
-                                }
-                            }
-                        }
-                        wait(&estado);
-                    }
-                }
-                break;
-            }
-            case 3: {
-
-                int nUtilizadores = loadUsersFile(FUSERS);
-                printf("\nNum. Utilizadores no ficheiro: %d\n",nUtilizadores);
-
-                char usr[MAX_SIZE];
-                int saldo = 0;
-
-                printf("\nUtilizador a procurar: ");
-                scanf("%s",usr);
-
-                saldo = getUserBalance(usr);
-                printf("\nSaldo atual: %d\n",saldo);
-                if(saldo == -1){
-                    printf("[ERRO] Não foi possível obter o saldo.\n%s\n", getLastErrorText());
-                    break;
-                }
-
-                saldo -= 1;
-                if(updateUserBalance(usr, saldo) == 1){
-                    printf("Saldo do utilizador %s atualizado!\n",usr);
-                    printf("Saldo após taxa de teste (1): %d",getUserBalance(usr));
-                }
-                else{
-                    printf("Erro ao atualizar o saldo do utilizador %s.\n%s\n",usr ,getLastErrorText());
-                }
-
-                saveUsersFile(FUSERS);
-
-                break;
-            }
-            case 6:{
-                for(int i=0;i<nitems_lista;i++)
-                {
-                    printf("\n:::ITEM %d:::\n",i+1);
-                    printf("ID: %d\n", item_lista[i].id);
-                    printf("Item: %s\n", item_lista[i].nome);
-                    printf("Categoria: %s\n", item_lista[i].categoria);
-                    printf("Licitação: %d\n", item_lista[i].bid);
-                    printf("Compre já: %d\n", item_lista[i].buyNow);
-                    printf("Tempo de venda: %d\n", item_lista[i].tempo);
-                    printf("Vendedor: %s\n", item_lista[i].vendedor);
-                    printf("Licitador: %s\n", item_lista[i].licitador);
-                }
-            }
-            case 0:{
-
-                break;
-            }
-            default:
-                printf("Opção desconhecida.");
-                break;
-        }
-        printf("\n\n\n");
-    }while(opc!=0);
-
     for(int i=0; i<nConnectedUsers; i++){
         printf("%s %d\n",connectedUsers[i].nome,connectedUsers[i].saldo);
     }
 
-    for(int i=0;i<NUM_OF_THREADS;i++){
-        rrdata.para = 0;
-        CA end;
-        strcpy(end.word,"SHUTDOWN");
-        int n = write(fd_sv_fifo,&end,sizeof(CA));
-        if(n == sizeof(User)){
-            printf("[INFO] Enviei %s\n",end.word);
+    //Termina thread de promotores
+    for(int i=0;i<MAX_PROMOTORES;i++){
+        int fdPromo;
+        char res_prom_fifo[MAX_SIZE_FIFO];
+
+        pddata[i].para = 0;
+        strcpy(pddata[i].promocao->categoria,"SHUTDOWN");
+        sprintf(res_prom_fifo, PRMTR_FIFO, pddata[i].promotor->pid);
+        fdPromo = open(res_prom_fifo, O_WRONLY);
+        write(fdPromo, &pddata, sizeof(PD));
+        close(fdPromo);
+
+        int n = write(fd_sv_fifo,&pddata,sizeof(PD));
+        if(n == sizeof(CA)){
+            printf("[INFO] Enviei %s\n",pddata[i].promocao->categoria);
         }
-        pthread_join(thread[i],NULL);
+        pthread_join(threadPromotor[i], NULL);
     }
+
+    //Termina thread request/response
+    rrdata.para = 0;
+    CA end;
+    strcpy(end.word,"SHUTDOWN");
+    int n = write(fd_sv_fifo,&end,sizeof(CA));
+    if(n == sizeof(CA)){
+        printf("[INFO] Enviei %s\n",end.word);
+    }
+    pthread_join(threadRR, NULL);
+
+    pthread_mutex_destroy(&trinco_promocoes);
     pthread_mutex_destroy(&trinco);
 
     close(fd_sv_fifo);
