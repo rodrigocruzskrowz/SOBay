@@ -102,11 +102,18 @@ int main(int argc, char *argv[])
                 if(resposta == sizeof(CA)){
                     if(strcmp(comm.word,"SHUTDOWNALL") == 0){
                         printf("[INFO] O BACKEND informou que vai encerrar. A terminar plataforma...\n\n");
-                        //TODO: TERMINAR FRONTEND
+                        //Termina cliente
+                        break;
                     }
 
                     else if(strcmp(comm.word,"ITEXPIRED") == 0){
                         printf("\n[INFO] O item '%s' expirou!\n\n",comm.secWord);
+                    }
+
+                    else if(strcmp(comm.word,"UTKICK") == 0){
+                        printf("\n[INFO] Foi expulso da plataforma pelo administrador.\n\n");
+                        //Termina cliente
+                        break;
                     }
                 }
 

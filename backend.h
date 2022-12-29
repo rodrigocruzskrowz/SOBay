@@ -6,8 +6,6 @@
 #include "struct.h"
 #include <pthread.h>
 
-#define PRMTR_FIFO "promotor_%d"
-
 char *FUSERS;
 char *FITEMS;
 char *FPROMOTERS;
@@ -80,5 +78,8 @@ void *gerePromotores(void *data);
 
 //Imprime lista de utilizadores com conexão válida estabelecida
 void imprimeConnectedUsers(User *dados, int total);
+
+//Imprime lista de promotores ativos
+void imprimeActivePromoters(Promotor *dados, int total);
 
 #endif //SOBay_BACKEND_H
