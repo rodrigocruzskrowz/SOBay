@@ -1,8 +1,5 @@
 #include "backend.h"
 
-int parar = 0;
-int pidPromotor;
-
 void addUserConnection(User ut, User *connUt, int *nusers){
     connUt[(*nusers)++] = ut;
 }
@@ -22,18 +19,6 @@ void removeUserConnection(User ut, User *connUt, int *nusers){
     (*nusers)--;
 }
 
-void stopReadPromotor(int sign, siginfo_t *info){
-    union sigval sv;
-    sv.sival_int = 1;
-    sigqueue(pidPromotor, SIGUSR1, sv);
-    signal(SIGINT,SIG_DFL);
-    parar = 1;
-}
-void stopValidatingLogs(int sign){
-    signal(SIGINT,SIG_DFL);
-    parar = 1;
-}
-
 void initPlataforma(){
     int fd_init = open(FINIT, O_RDONLY);
     if(fd_init == -1){
@@ -41,6 +26,7 @@ void initPlataforma(){
         fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
         char initFile[MAX_SIZE] = "1 1";
         write(fd_init,initFile,strlen(initFile));
+        close(fd_init);
         printf("Ficheiro de inicialização gerado!\n\n");
     }
     else{
@@ -137,6 +123,7 @@ void *incTempoInfo(void *data){
 
         //Decrementa tempo de items em leilao
         for(int i=0;i<*ttd->nlistIt;i++){
+
             //Decrementa tempo do item
             (ttd->listIt[i].tempo)--;
 
@@ -158,7 +145,9 @@ void *incTempoInfo(void *data){
                     close(fd_cli_fifo);
                 }
 
-                ttd->listIt[i] = ttd->listIt[i+1];
+                for(int x=i;x<*ttd->nlistIt;x++)
+                    ttd->listIt[x] = ttd->listIt[x+1];
+
                 (*ttd->nlistIt)--;
             }
         }
@@ -202,6 +191,7 @@ void *respondeUsers(void *data){
                         printf("[INFO] Tentativa de acesso com credenciais erradas.\n");
                     } else if (comm.ut.valid == 1) {
                         comm.ut.saldo = getUserBalance(comm.ut.nome);
+                        comm.number = HEARTBEAT;
                         sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
                         fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
                         write(fd_cli_fifo, &comm, sizeof(CA));
@@ -577,8 +567,8 @@ void *gerePromotores(void *data){
     int canal[2];
     pipe(canal);
 
-    res = fork();
-    if (res == 0) {
+    tpd->promotor->pid = fork();
+    if (tpd->promotor->pid == 0) {
         close(1);
         dup(canal[1]);
         close(canal[1]);
@@ -644,6 +634,7 @@ void *gerePromotores(void *data){
 
                         for(int i=0;i<*tpd->nlistIt;i++){
                             if(strcmp(tpd->listIt->categoria,tpd->promocao->categoria)==0){
+                                strcpy(tpd->listIt->promocao.categoria,tpd->promotor->designacao); //Guarda o promotor no campo categoria
                                 tpd->listIt->promocao.duracao = tpd->promocao->duracao;
                                 tpd->listIt->promocao.desconto = tpd->promocao->desconto;
                             }
@@ -651,9 +642,12 @@ void *gerePromotores(void *data){
                     }
                 }
             }
+            pthread_mutex_unlock(tpd->ptrinco);
         }
-        pthread_mutex_unlock(tpd->ptrinco);
     }
+    union sigval sv;
+    sv.sival_int = 0;
+    sigqueue(tpd->promotor->pid, SIGUSR1, sv);
     wait(&estado);
 
     pthread_exit(NULL);
@@ -706,7 +700,7 @@ int main() {
     //Verifica se a variavel de ambiente FUSERS existe
     if(getenv("FUSERS") == NULL){
         printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-//      FUSERS = "../users.txt";
+//        FUSERS = "../users.txt";
         exit(1);
     }
     else{
@@ -734,6 +728,17 @@ int main() {
     else{
         FITEMS = getenv("FITEMS");
         printf("\nVariável de ambiente 'FITEMS' = %s\n",FITEMS);
+    }
+
+    //Verifica se a variavel de ambiente HEARTBEAT existe
+    if(getenv("HEARTBEAT") == NULL){
+        printf("A variável de ambiente 'HEARTBEAT' não foi definida.\n");
+//        HEARTBEAT = 10;
+        exit(1);
+    }
+    else{
+        HEARTBEAT = atoi(getenv("HEARTBEAT"));
+        printf("Variável de ambiente 'HEARTBEAT' = %d\n\n",HEARTBEAT);
     }
 
     //Acede ao ficheiro de utilizadores
@@ -946,10 +951,6 @@ int main() {
                                 int fd_prom;
                                 char res_prom_fifo[MAX_SIZE_FIFO];
 
-                                union sigval sv;
-                                sv.sival_int = 0;
-                                sigqueue(pidPromotor, SIGUSR1, sv);
-
                                 pthread_join(threadPromotor[promotor_lista[j].threadNumber],NULL);
 
                                 //Remove da lista
@@ -1012,7 +1013,34 @@ int main() {
                 //Verificar se o executavel existe
 
                 //Cancelar promotor
-                printf("Comando válido!\n");
+//                printf("Comando válido!\n");
+
+                int elimina = 0;
+                for(int it=0;it<npromotor_lista;it++){
+                    if(elimina == 1){
+                        promotor_lista[it-1] = promotor_lista[it];
+                    }
+
+                    if(strcmp(promotor_lista[it].designacao,comando[1])==0){
+                        pddata[promotor_lista[it].threadNumber].para = 0;
+                        pthread_join(threadPromotor[promotor_lista[it].threadNumber],NULL);
+
+                        for(int x=0; x<nitems_lista; x++){
+                            if(strcmp(item_lista[x].promocao.categoria,comando[1])==0){
+                                strcpy(item_lista[x].promocao.categoria,"");
+                                item_lista[x].promocao.desconto = 0;
+                                item_lista[x].promocao.duracao = 0;
+                            }
+                        }
+
+                        elimina = 1;
+                    }
+                }
+
+                if(elimina == 1){
+                    npromotor_lista--;
+                }
+
             } else {
                 printf("[WARNING] O comando inserido não é válido.\n");
                 printf("Formato esperado:\n\tcancel <nome-do-executável-do-promotor>\n\n");
@@ -1057,10 +1085,6 @@ int main() {
         int fdPromo;
         char res_prom_fifo[MAX_SIZE_FIFO];
 
-        union sigval sv;
-        sv.sival_int = 0;
-        sigqueue(pidPromotor, SIGUSR1, sv);
-
         int n = write(fd_sv_fifo,&pddata,sizeof(PD));
         if(n == sizeof(CA)){
             printf("[INFO] Enviei %s\n",pddata[i].promocao->categoria);
@@ -1080,6 +1104,25 @@ int main() {
 
     pthread_mutex_destroy(&trinco_promocoes);
     pthread_mutex_destroy(&trinco);
+
+    //Guarda ficheiro de items
+    remove(FITEMS);
+    int fd_items = open(FITEMS, O_WRONLY | O_CREAT,0600);
+    for(int i=0; i<nitems_lista;i++){
+        char texto[1072];
+        sprintf(texto,"%d %s %s %d %d %d %s %s\n",item_lista[i].id,item_lista[i].nome,item_lista[i].categoria,
+                item_lista[i].bid,item_lista[i].buyNow,item_lista[i].tempo,item_lista[i].vendedor,item_lista[i].licitador);
+        write(fd_items,&texto, strlen(texto));
+    }
+    close(fd_items);
+
+    //Guarda estado da plataforma (tempo e id)
+    remove(FINIT);
+    int fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
+    char texto[MAX_SIZE];
+    sprintf(texto,"%d %d",TEMPO, PROX_ID);
+    write(fd_init,&texto, strlen(texto));
+    close(fd_init);
 
     close(fd_sv_fifo);
     unlink(BKND_FIFO); //Fecha canal do servidor

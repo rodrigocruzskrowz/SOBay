@@ -1,6 +1,5 @@
 #ifndef SOBAY_STRUCT_H
 #define SOBAY_STRUCT_H
-#include "utils.h"
 
 #include "stdio.h"
 #include "ctype.h"
@@ -22,7 +21,6 @@
 
 #define BKND_FIFO "bknd"
 #define FRND_FIFO "user_%d"
-
 
 typedef struct Utilizador User;
 struct Utilizador{
