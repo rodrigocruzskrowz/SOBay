@@ -69,7 +69,7 @@ build CMakeFiles/frontend.dir/utils.c.o: C_COMPILER__frontend_Debug /home/rodrig
 #############################################
 # Link the executable frontend
 
-build frontend: C_EXECUTABLE_LINKER__frontend_Debug ../users_lib.o CMakeFiles/frontend.dir/frontend.c.o CMakeFiles/frontend.dir/utils.c.o
+build frontend: C_EXECUTABLE_LINKER__frontend_Debug CMakeFiles/frontend.dir/frontend.c.o CMakeFiles/frontend.dir/utils.c.o
   FLAGS = -pthread -g
   OBJECT_DIR = CMakeFiles/frontend.dir
   POST_BUILD = :

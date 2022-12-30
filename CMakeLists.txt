@@ -7,10 +7,7 @@ add_executable(frontend
         frontend.h
         frontend.c
         utils.h
-        utils.c
-        users_lib.h
-        users_lib.o
-        struct.h)
+        utils.c)
 
 add_executable(backend
         backend.h
@@ -18,7 +15,6 @@ add_executable(backend
         utils.h
         utils.c
         users_lib.h
-        users_lib.o
-        struct.h)
+        users_lib.o)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")

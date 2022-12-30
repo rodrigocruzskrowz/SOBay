@@ -2,14 +2,14 @@
 #define SOBay_BACKEND_H
 #include "utils.h"
 #include "users_lib.h"
-#include "utils.h"
-#include "struct.h"
 #include <pthread.h>
 
 char *FUSERS;
 char *FITEMS;
 char *FPROMOTERS;
 char *FINIT = "init.txt";
+
+int HEARTBEAT;
 
 int TEMPO;
 int PROX_ID;

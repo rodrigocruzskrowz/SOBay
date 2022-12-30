@@ -1,5 +1,7 @@
 #include "frontend.h"
 
+int HEARTBEAT;
+
 int main(int argc, char *argv[])
 {
     int fd_bknd_fifo;
@@ -15,16 +17,6 @@ int main(int argc, char *argv[])
         main.ut.saldo = -1;
         main.ut.valid = 0;
         main.ut.pid = getpid();
-
-        //Verifica se a variavel de ambiente HEARTBEAT existe
-        if(getenv("HEARTBEAT") == NULL){
-            printf("A variável de ambiente 'HEARTBEAT' não foi definida.\n");
-            exit(1);
-        }
-        else{
-            const int HEARTBEAT = atoi(getenv("HEARTBEAT"));
-            printf("Variável de ambiente 'HEARTBEAT' = %d\n\n",HEARTBEAT);
-        }
 
         //Verifica se o backend está em execução
         if(access(BKND_FIFO, F_OK) != 0){
@@ -59,6 +51,8 @@ int main(int argc, char *argv[])
         resposta = read(fd_cli_fifo, &main, sizeof(CA));
         if(resposta == sizeof(CA)){
             if(main.ut.valid == 1){
+                HEARTBEAT = main.number;
+//                printf("HEARTBEAT: %d",main.number);
                 printf("Olá, %s!\nO seu saldo é de %d SOCoins.\n\n", main.ut.nome, main.ut.saldo);
             }
             else{
@@ -86,15 +80,22 @@ int main(int argc, char *argv[])
             FD_ZERO(&fd);
             FD_SET(0,&fd);
             FD_SET(fd_cli_fifo, &fd);
-            timeout.tv_sec = 10;
+            timeout.tv_sec = HEARTBEAT;
             timeout.tv_usec = 0;
+
+            //TODO: IMPLEMENTAR HEARTBEAT
 
             res_sel = select(fd_cli_fifo + 1, &fd, NULL, NULL, &timeout);
 
             if(res_sel == -1){
+                //ERRO
                 printf("[ERROR] ERRO NO SELECT - %s\n", strerror(errno));
                 break;
             }
+//            if(res_sel == 0){
+//                //Timeout
+//
+//            }
             if(res_sel > 0 && FD_ISSET(fd_cli_fifo, &fd)){
                 //Trata dados recebidos
                 CA comm;
