@@ -1,15 +1,68 @@
 #include "frontend.h"
 
-int HEARTBEAT;
+int fd_frtnd, fd_bknd, fd_hb;
+char *fifo;
+
+void *sendHeartBeat(void *pdata){
+    HB *thb = pdata;
+    CA comm;
+
+    while(thb->para == 1){
+        //ESPERAR PELO TRINCO (BLOQUEAR)
+        pthread_mutex_lock(thb->ptrinco);
+
+        strcpy(comm.secWord,"HEARTBEAT");
+        strcpy(comm.word,thb->nomeUser);
+        comm.ut.pid = thb->pid;
+        //int fdhb = open(HB_FIFO,O_WRONLY);
+        int n = write(thb->fd_hb_fifo, &comm, sizeof(CA));
+        if(n == sizeof(CA)){
+            printf("\n[INFO] Enviei %s\n", comm.secWord);
+        }
+        //close(fdhb);
+
+        //ESPERAR PELO TRINCO (DESBLOQUEAR)
+        pthread_mutex_unlock(thb->ptrinco);
+
+        sleep(thb->heartbeat);
+    }
+
+    pthread_exit(NULL);
+}
+
+void sendHeartbeat(){
+    CA comm;
+    strcpy(comm.word,"HEARTBEAT");
+    comm.ut.pid = getpid();
+    int fdhb = open(HB_FIFO,O_WRONLY);
+    int n = write(fdhb, &comm, sizeof(CA));
+    if(n == sizeof(CA)){
+        printf("[INFO] Enviei %s\n", comm.word);
+    }
+    close(fdhb);
+}
+
+void encerraFrontend(int sign){
+    close(fd_frtnd);
+    close(fd_bknd);
+    close(fd_hb);
+    unlink(fifo);
+    printf("\n");
+}
 
 int main(int argc, char *argv[])
 {
     int fd_bknd_fifo;
     int fd_cli_fifo;
     char cli_fifo[MAX_SIZE_FIFO];
+    pthread_mutex_t trinco;
+    pthread_mutex_init(&trinco,NULL);
+    pthread_t threadHB;
+    HB hbdata;
 
     if(argc == 3){
         CA main;
+        int HEARTBEAT;
 
         strcpy(main.word, "LOGIN");
         strcpy(main.ut.nome, argv[1]);
@@ -30,6 +83,12 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
+        int fd_hb_fifo = open(HB_FIFO, O_WRONLY);
+        if(fd_hb_fifo == -1){
+            printf("[ERROR] Não foi possível abrir o canal de comunicação com o BACKEND (HEARTBEATS).\n");
+            exit(1);
+        }
+
         //Cria FIFO do cliente
         sprintf(cli_fifo, FRND_FIFO, main.ut.pid);
         if(access(cli_fifo,F_OK) != 0)
@@ -39,6 +98,17 @@ int main(int argc, char *argv[])
             printf("[ERROR] Não foi possível criar o canal de comunicação com o BACKEND.\n");
             exit(1);
         }
+
+        fd_frtnd = fd_cli_fifo;
+        fd_bknd = fd_bknd_fifo;
+        fd_hb = fd_hb_fifo;
+        fifo = cli_fifo;
+
+        //Modifica comportamento do CTRL + C
+        struct sigaction sa;
+        sa.sa_handler = encerraFrontend;
+        sa.sa_flags = SA_SIGINFO;
+        sigaction(SIGINT,&sa,NULL);
 
         //Envia login para o BACKEND
         int n = write(fd_bknd_fifo, &main, sizeof(CA));
@@ -64,10 +134,27 @@ int main(int argc, char *argv[])
             }
         }
 
+        //Inicia thread hearthbeat
+        hbdata.pid = main.ut.pid;
+        strcpy(hbdata.nomeUser,main.ut.nome);
+        hbdata.fd_hb_fifo = fd_hb_fifo;
+        hbdata.heartbeat = HEARTBEAT;
+        hbdata.ptrinco = &trinco;
+        hbdata.para = 1;
+
+        int ver = pthread_create(&threadHB, NULL, sendHeartBeat, &hbdata);
+        if(ver != 0){
+            printf("[ERROR] Erro ao criar a thread %d (envio de heartbeat).\n",ver);
+            close(fd_cli_fifo);
+            close(fd_bknd_fifo);
+            close(fd_hb_fifo);
+            exit(1);
+        }
+
         //Select
         fd_set fd;
         int res_sel;
-        struct timeval timeout;
+        //struct timeval timeout;
 
         int printComando = 1;
         while(1){
@@ -77,15 +164,21 @@ int main(int argc, char *argv[])
                 printComando = 0;
             }
 
+            //HEARTBEAT
+//            struct sigaction sa;
+//            sa.sa_sigaction = sendHeartbeat;
+//            sa.sa_flags = SA_SIGINFO;
+//            sigaction(SIGALRM,&sa,NULL);
+//            alarm(HEARTBEAT);
+
             FD_ZERO(&fd);
             FD_SET(0,&fd);
             FD_SET(fd_cli_fifo, &fd);
-            timeout.tv_sec = HEARTBEAT;
-            timeout.tv_usec = 0;
+//            timeout.tv_sec = HEARTBEAT;
+//            timeout.tv_usec = 0;
 
-            //TODO: IMPLEMENTAR HEARTBEAT
-
-            res_sel = select(fd_cli_fifo + 1, &fd, NULL, NULL, &timeout);
+            res_sel = select(fd_cli_fifo + 1, &fd, NULL, NULL, NULL);
+//            res_sel = select(fd_cli_fifo + 1, &fd, NULL, NULL, &timeout);
 
             if(res_sel == -1){
                 //ERRO
@@ -641,6 +734,7 @@ int main(int argc, char *argv[])
                         //Avisa o backend que vai sair e sair
                         CA comm;
                         comm.ut.pid = main.ut.pid;
+                        strcpy(comm.ut.nome,main.ut.nome);
                         strcpy(comm.word,"EXIT");
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
@@ -660,11 +754,16 @@ int main(int argc, char *argv[])
                 i=0,j=0,c=0;
             }
         }
+        close(fd_hb_fifo);
     }
     else{
         printf("Número de parâmetros inválido!\n");
         printf("Síntaxe esperada: ./frontend <username> <password>\n\n");
     }
+
+    hbdata.para = 0;
+    pthread_join(threadHB, NULL);
+    pthread_mutex_destroy(&trinco);
 
     close(fd_bknd_fifo);
     close(fd_cli_fifo);

@@ -11,6 +11,7 @@
 #include <sys/select.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <errno.h>
 
 #define MAX_SIZE 256
@@ -21,6 +22,7 @@
 
 #define BKND_FIFO "bknd"
 #define FRND_FIFO "user_%d"
+#define HB_FIFO "hbfd"
 
 typedef struct Utilizador User;
 struct Utilizador{
@@ -29,6 +31,7 @@ struct Utilizador{
     int saldo;
     int valid;
     int pid;
+    int expiresAt;
 };
 
 typedef struct Promocao Promo;

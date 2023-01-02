@@ -2,7 +2,6 @@
 #define SOBay_BACKEND_H
 #include "utils.h"
 #include "users_lib.h"
-#include <pthread.h>
 
 char *FUSERS;
 char *FITEMS;
@@ -54,6 +53,16 @@ struct ThreadPromotorData{
     int para;
 };
 
+typedef struct ThreadHeartbeatData HBD;
+struct ThreadHeartbeatData{
+    User *connUt;
+    int *nConnUt;
+    int heartbeat;
+    int fd_hb;
+    pthread_mutex_t *ptrinco;
+    int para;
+};
+
 void stopReadPromotor(int sign, siginfo_t *info);
 void stopValidatingLogs(int sign);
 
@@ -81,5 +90,16 @@ void imprimeConnectedUsers(User *dados, int total);
 
 //Imprime lista de promotores ativos
 void imprimeActivePromoters(Promotor *dados, int total);
+
+//Verifica hearbeats recebidos
+void *handleHeartBeat(void *pdata);
+
+//Guarda items em leilão
+void guardaItemsFile(Item *item_lista, int *nitems_lista);
+
+//Guarda estado da aplicação
+void guardaAppStatus();
+
+void encerraBackend(int sign);
 
 #endif //SOBay_BACKEND_H

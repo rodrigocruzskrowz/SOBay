@@ -1,5 +1,8 @@
 #include "backend.h"
 
+User *CONN;
+int *NCONN, hb_fd, bknd_fd;
+
 void addUserConnection(User ut, User *connUt, int *nusers){
     connUt[(*nusers)++] = ut;
 }
@@ -543,7 +546,7 @@ void *respondeUsers(void *data){
             }
 
             else if(strcmp(comm.word,"EXIT")==0){
-                printf("[INFO] O cliente %d informou que ia sair.\n",comm.ut.pid);
+                printf("[INFO] O utilizador %s ('pid: %d') informou que ia sair.\n",comm.ut.nome,comm.ut.pid);
                 removeUserConnection(comm.ut,trr->connUt,trr->nConnUt);
             }
 
@@ -677,6 +680,113 @@ void imprimeActivePromoters(Promotor *dados, int total){
     }
 }
 
+void *handleHeartBeat(void *pdata){
+    HBD *thbd = pdata;
+    CA comm;
+    User ut;
+    fd_set fdhb;
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    while(thbd->para == 1){
+        FD_ZERO(&fdhb);
+        FD_SET(0,&fdhb);
+        FD_SET(thbd->fd_hb, &fdhb);
+
+        int res_sel = select(thbd->fd_hb + 1, &fdhb, NULL, NULL, &timeout);
+        if(res_sel > 0 && FD_ISSET(thbd->fd_hb, &fdhb)){
+            //Lê
+            int n = read(thbd->fd_hb, &comm, sizeof(CA));
+            if(n == sizeof(CA)){
+                printf("\n[INFO] Recebi o HEARTBEAT de %s (PID: %d)\n", comm.word, comm.ut.pid);
+            }
+
+            ut.pid = comm.ut.pid;
+            strcpy(ut.nome,comm.word);
+        }
+
+        //Trata dados
+        for(int i=0;i<*thbd->nConnUt;i++){
+            if(ut.pid == thbd->connUt[i].pid){
+                //ESPERAR PELO TRINCO (BLOQUEAR)
+                pthread_mutex_lock(thbd->ptrinco);
+
+                //Atualiza tempo para expirar
+                thbd->connUt[i].expiresAt = TEMPO + HEARTBEAT;
+                printf("[INFO] Conexão do utilizador %s (%d) válida até %d. (HORA ATUAL: %d)\n",thbd->connUt[i].nome,thbd->connUt[i].pid,thbd->connUt[i].expiresAt,TEMPO);
+
+                ut.pid = 0;
+
+                //ESPERAR PELO TRINCO (DESBLOQUEAR)
+                pthread_mutex_unlock(thbd->ptrinco);
+            }
+
+            //Verifica se algum utilizador expirou
+            if(thbd->connUt[i].expiresAt < TEMPO && thbd->connUt[i].expiresAt != 0){
+                pthread_mutex_lock(thbd->ptrinco);
+
+                //Remove utilizador expirado
+                removeUserConnection(ut,thbd->connUt,thbd->nConnUt);
+                printf("[INFO] Conexão com o utilizador %s (%d) terminada. HEARTBEAT EXPIROU.\n",thbd->connUt[i].nome,thbd->connUt[i].pid);
+
+                pthread_mutex_unlock(thbd->ptrinco);
+            }
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+void guardaItemsFile(Item *item_lista, int *nitems_lista){
+    //Guarda ficheiro de items
+    remove(FITEMS);
+    int fd_items = open(FITEMS, O_WRONLY | O_CREAT,0600);
+    for(int i=0; i<*nitems_lista;i++){
+        char texto[1072];
+        sprintf(texto,"%d %s %s %d %d %d %s %s\n",item_lista[i].id,item_lista[i].nome,item_lista[i].categoria,
+                item_lista[i].bid,item_lista[i].buyNow,item_lista[i].tempo,item_lista[i].vendedor,item_lista[i].licitador);
+        write(fd_items,&texto, strlen(texto));
+    }
+    close(fd_items);
+}
+
+void guardaAppStatus(){
+    //Guarda estado da plataforma (tempo e id)
+    remove(FINIT);
+    int fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
+    char texto[MAX_SIZE];
+    sprintf(texto,"%d %d",TEMPO, PROX_ID);
+    write(fd_init,&texto, strlen(texto));
+    close(fd_init);
+}
+
+void encerraBackend(int sign){
+    signal(SIGINT,SIG_DFL);
+    fflush(stdout);
+    printf("\n\n[INFO] Detetado encerramento forçado.\n");
+
+    CA comm;
+    char res_cli_fifo[MAX_SIZE_FIFO];
+    int fd_cli_fifo;
+
+    //Notifica frontends
+    strcpy(comm.word,"SHUTDOWNALL");
+    for(int i=0; i<*NCONN; i++){
+        sprintf(res_cli_fifo, FRND_FIFO, CONN[i].pid);
+        fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
+        write(fd_cli_fifo,&comm,sizeof(CA));
+        close(fd_cli_fifo);
+    }
+
+    close(bknd_fd);
+    close(hb_fd);
+    unlink(BKND_FIFO);
+    unlink(HB_FIFO);
+    printf("[INFO] Plataforma terminada!\n");
+    exit(1);
+}
+
 int main() {
 
     initPlataforma();
@@ -754,14 +864,29 @@ int main() {
     mkfifo(BKND_FIFO,0600);
     fd_sv_fifo = open(BKND_FIFO,O_RDWR);
 
+    //Cria FIFO para HEARTBEATS
+    mkfifo(HB_FIFO,0600);
+    int fd_hb = open(HB_FIFO,O_RDWR);
+
+    //Modifica comportamento do CTRL + C
+    CONN = connectedUsers;
+    NCONN = &nConnectedUsers;
+    hb_fd = fd_hb;
+    bknd_fd = fd_sv_fifo;
+    struct sigaction sa;
+    sa.sa_handler = encerraBackend;
+    sa.sa_flags = SA_SIGINFO;
+    sigaction(SIGINT,&sa,NULL);
+
     //Cria mutex - thread
     pthread_mutex_t trinco, trinco_promocoes;
     pthread_mutex_init(&trinco,NULL);
     pthread_mutex_init(&trinco_promocoes,NULL);
-    pthread_t threadRR, threadT, threadPromotor[MAX_PROMOTORES];
+    pthread_t threadRR, threadT, threadPromotor[MAX_PROMOTORES], threadHB;
     RR rrdata;
     TD tddata;
     PD pddata[MAX_PROMOTORES];
+    HBD hbdata;
 
     rrdata.connUt = connectedUsers;
     rrdata.nConnUt = &nConnectedUsers;
@@ -774,6 +899,23 @@ int main() {
     int ver = pthread_create(&threadRR, NULL, respondeUsers, &rrdata);
     if(ver != 0){
         printf("[ERROR] Erro ao criar a thread %d (validação de login).\n",ver);
+        close(fd_sv_fifo);
+        close(fd_hb);
+        exit(1);
+    }
+
+    hbdata.connUt = connectedUsers;
+    hbdata.nConnUt = &nConnectedUsers;
+    hbdata.heartbeat = HEARTBEAT;
+    hbdata.fd_hb = fd_hb;
+    hbdata.ptrinco = &trinco;
+    hbdata.para = 1;
+
+    ver = pthread_create(&threadHB, NULL, handleHeartBeat, &hbdata);
+    if(ver != 0){
+        printf("[ERROR] Erro ao criar a thread %d (gestão de heartbeats).\n",ver);
+        close(fd_sv_fifo);
+        close(fd_hb);
         exit(1);
     }
 
@@ -1056,7 +1198,7 @@ int main() {
                 //Notifica frontends
                 strcpy(comm.word,"SHUTDOWNALL");
                 for(int i=0; i<nConnectedUsers; i++){
-                    sprintf(res_cli_fifo, FRND_FIFO, connectedUsers->pid);
+                    sprintf(res_cli_fifo, FRND_FIFO, connectedUsers[i].pid);
                     fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
                     write(fd_cli_fifo,&comm,sizeof(CA));
                     close(fd_cli_fifo);
@@ -1076,9 +1218,9 @@ int main() {
         i = 0, j = 0, c = 0;
     }
 
-    for(int i=0; i<nConnectedUsers; i++){
-        printf("%s %d\n",connectedUsers[i].nome,connectedUsers[i].saldo);
-    }
+//    for(int i=0; i<nConnectedUsers; i++){
+//        printf("%s %d\n",connectedUsers[i].nome,connectedUsers[i].saldo);
+//    }
 
     //Termina threads dos promotores
     for(int i=0;i<npromotor_lista;i++){
@@ -1092,11 +1234,20 @@ int main() {
         pthread_join(threadPromotor[promotor_lista[i].threadNumber], NULL);
     }
 
-    //Termina thread request/response
-    rrdata.para = 0;
+    //Termina thread heartbeats
+    hbdata.para = 0;
     CA end;
     strcpy(end.word,"SHUTDOWN");
-    int n = write(fd_sv_fifo,&end,sizeof(CA));
+    int n = write(fd_hb,&end,sizeof(CA));
+    if(n == sizeof(CA)){
+        printf("[INFO] Enviei %s\n",end.word);
+    }
+    pthread_join(threadHB, NULL);
+
+    //Termina thread request/response
+    rrdata.para = 0;
+    strcpy(end.word,"SHUTDOWN");
+    n = write(fd_sv_fifo,&end,sizeof(CA));
     if(n == sizeof(CA)){
         printf("[INFO] Enviei %s\n",end.word);
     }
@@ -1105,26 +1256,14 @@ int main() {
     pthread_mutex_destroy(&trinco_promocoes);
     pthread_mutex_destroy(&trinco);
 
-    //Guarda ficheiro de items
-    remove(FITEMS);
-    int fd_items = open(FITEMS, O_WRONLY | O_CREAT,0600);
-    for(int i=0; i<nitems_lista;i++){
-        char texto[1072];
-        sprintf(texto,"%d %s %s %d %d %d %s %s\n",item_lista[i].id,item_lista[i].nome,item_lista[i].categoria,
-                item_lista[i].bid,item_lista[i].buyNow,item_lista[i].tempo,item_lista[i].vendedor,item_lista[i].licitador);
-        write(fd_items,&texto, strlen(texto));
-    }
-    close(fd_items);
 
-    //Guarda estado da plataforma (tempo e id)
-    remove(FINIT);
-    int fd_init = open(FINIT, O_WRONLY | O_CREAT,0600);
-    char texto[MAX_SIZE];
-    sprintf(texto,"%d %d",TEMPO, PROX_ID);
-    write(fd_init,&texto, strlen(texto));
-    close(fd_init);
+    guardaItemsFile(item_lista,&nitems_lista);
+
+    guardaAppStatus();
 
     close(fd_sv_fifo);
+    close(fd_hb);
+    unlink(HB_FIFO);
     unlink(BKND_FIFO); //Fecha canal do servidor
     printf("[INFO] Plataforma terminada!\n");
     return 0;
