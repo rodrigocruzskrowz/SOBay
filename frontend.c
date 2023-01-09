@@ -48,6 +48,7 @@ void encerraFrontend(int sign){
     close(fd_hb);
     unlink(fifo);
     printf("\n");
+    exit(1);
 }
 
 int main(int argc, char *argv[])
@@ -204,14 +205,102 @@ int main(int argc, char *argv[])
                         printf("\n[INFO] O item '%s' expirou!\n\n",comm.secWord);
                     }
 
+                    else if(strcmp(comm.word,"ITBOUGHT") == 0){
+                        printf("\n[INFO] O item '%s' foi comprado!\n\n",comm.secWord);
+                    }
+
+                    else if(strcmp(comm.word,"ITLICIT") == 0){
+                        printf("\n[INFO] O item '%s' foi licitado!\n\n",comm.secWord);
+                    }
+
                     else if(strcmp(comm.word,"UTKICK") == 0){
                         printf("\n[INFO] Foi expulso da plataforma pelo administrador.\n\n");
                         //Termina cliente
                         break;
                     }
-                }
 
-                //TODO: COLOCAR AQUI TODAS AS RESPOSTAS AOS COMANDOS
+                    else if(strcmp(comm.word,"INSERIDO") == 0){
+                        printf("[INFO] O artigo foi adicionado ao leilão com o id %d!\n\n",comm.secNumber);
+                    }
+
+                    else if(strcmp(comm.word,"ENVIADO")==0){
+                        //Recebe lista de items
+                        printf("\n\n:::::LISTA DE ITEMS:::::");
+                        imprimeItems(comm.it,comm.number);
+                    }
+
+                    else if(strcmp(comm.word,"ENVCAT")==0){
+                        if(comm.number <= 0){
+                            printf("[INFO] Não existem items da categoria '%s' em leilão.\n",comm.secWord);
+                        }
+                        else{
+                            //Recebe lista de items
+                            printf("\n\n:::::LISTA DE ITEMS:::::");
+                            imprimeItems(comm.it,comm.number);
+                        }
+                    }
+
+                    else if(strcmp(comm.word,"ENVSEL")==0){
+                        if(comm.number <= 0){
+                            printf("[INFO] Não existem items do vendedor '%s' em leilão.\n",comm.secWord);
+                        }
+                        else{
+                            //Recebe lista de items
+                            printf("\n\n:::::LISTA DE ITEMS:::::");
+                            imprimeItems(comm.it,comm.number);
+                        }
+                    }
+
+                    else if(strcmp(comm.word,"ENVVAL")==0){
+                        if(comm.number <= 0){
+                            printf("[INFO] Não existem items com valor até %d.\n",comm.number);
+                        }
+                        else{
+                            //Recebe lista de items
+                            printf("\n\n:::::LISTA DE ITEMS:::::");
+                            imprimeItems(comm.it,comm.number);
+                        }
+                    }
+
+                    else if(strcmp(comm.word,"ENVTIM")==0){
+                        if(comm.number <= 0){
+                            printf("[INFO] Não existem items em leilão à hora %d.\n",comm.number);
+                        }
+                        else{
+                            //Recebe lista de items
+                            printf("\n\n:::::LISTA DE ITEMS:::::");
+                            imprimeItems(comm.it,comm.number);
+                        }
+                    }
+
+                    else if(strcmp(comm.word,"ENVTIME")==0){
+                        printf("Hora atual: %d\n",comm.number);
+                    }
+
+                    else if(strcmp(comm.word,"ERRSALDO")==0){
+                        printf("[INFO] O seu saldo não é suficiente para completar a transação.\nO seu saldo é de %d SOCoins.",comm.ut.saldo);
+                    }
+                    else if(strcmp(comm.word,"BOUGHT")==0){
+                        printf("[INFO] O item %d foi comprado com sucesso!\nO seu saldo atual é de %d SOCoins.\n",comm.number,comm.ut.saldo);
+                    }
+                    else if(strcmp(comm.word,"BIDDED")==0){
+                        printf("[INFO] Licitação de %d colocada no item %d.\nO seu saldo atual é de %d SOCoins.",comm.secNumber,comm.number,comm.ut.saldo);
+                    }
+                    else if(strcmp(comm.word,"ERRID")==0){
+                        printf("[INFO] Item com o id %d não encontrado.\n",comm.number);
+                    }
+                    else if(strcmp(comm.word,"ERRVAL")==0){
+                        printf("[INFO] O valor de licitação é inferior ao preço atual do item, por favor faça nova licitação.\n");
+                    }
+
+                    else if(strcmp(comm.word,"ENVCASH")==0){
+                        printf("[INFO] O meu saldo atual: %d SOCoins\n",comm.number);
+                    }
+
+                    else if(strcmp(comm.word,"ENVADDMONEY")==0){
+                        printf("[INFO] Foram adicionadas %d SOCoins ao seu saldo.\nO seu saldo atual é de %d SOCoins.",comm.number,comm.ut.saldo);
+                    }
+                }
             }
             if(res_sel > 0 && FD_ISSET(0, &fd)){
                 //Lê comando
@@ -303,17 +392,6 @@ int main(int argc, char *argv[])
                         if(n == sizeof(CA)){
                             printf("[INFO] Enviei %s %d %s %s %d %d %d %s %s\n\n",comm.word,comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
                         }
-
-                        //Recebe confirmação do registo do Item
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"INSERIDO") == 0){
-                                printf("[INFO] O artigo foi adicionado ao leilão com o id %d!\n\n",comm.secNumber);
-                            }
-                            else{
-                                printf("[ERROR] Erro ao registar o item. Por favor tente mais tarde.\n\n");
-                            }
-                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -333,20 +411,6 @@ int main(int argc, char *argv[])
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi para '%s' items.\n\n",comm.word);
-                        }
-
-                        //Recebe resposta
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            //printf("Recebi: %s",main.word);
-                            if(strcmp(comm.word,"ENVIADO")==0){
-                                //Recebe lista de items
-                                printf("\n\n:::::LISTA DE ITEMS:::::");
-                                imprimeItems(comm.it,comm.number);
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
                         }
                     }
                     else {
@@ -369,24 +433,6 @@ int main(int argc, char *argv[])
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi os items da categoria: '%s'\n\n",comm.secWord);
                         }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVCAT")==0){
-                                if(comm.number <= 0){
-                                    printf("[INFO] Não existem items da categoria '%s' em leilão.\n",comm.secWord);
-                                }
-                                else{
-                                    //Recebe lista de items
-                                    printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItems(comm.it,comm.number);
-                                }
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
-                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -408,24 +454,6 @@ int main(int argc, char *argv[])
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi os items do vendedor: '%s'\n\n",comm.secWord);
-                        }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVSEL")==0){
-                                if(comm.number <= 0){
-                                    printf("[INFO] Não existem items do vendedor '%s' em leilão.\n",comm.secWord);
-                                }
-                                else{
-                                    //Recebe lista de items
-                                    printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItems(comm.it,comm.number);
-                                }
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
                         }
                     }
                     else {
@@ -463,24 +491,6 @@ int main(int argc, char *argv[])
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi os items até %d SOCoins.\n\n",atoi(comando[1]));
                         }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVVAL")==0){
-                                if(comm.number <= 0){
-                                    printf("[INFO] Não existem items com valor até %d.\n",atoi(comando[1]));
-                                }
-                                else{
-                                    //Recebe lista de items
-                                    printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItems(comm.it,comm.number);
-                                }
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
-                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -517,24 +527,6 @@ int main(int argc, char *argv[])
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi os items até à hora %d\n\n",atoi(comando[1]));
                         }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVTIM")==0){
-                                if(comm.number <= 0){
-                                    printf("[INFO] Não existem items em leilão à hora %d.\n",atoi(comando[1]));
-                                }
-                                else{
-                                    //Recebe lista de items
-                                    printf("\n\n:::::LISTA DE ITEMS:::::");
-                                    imprimeItems(comm.it,comm.number);
-                                }
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
-                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -553,17 +545,6 @@ int main(int argc, char *argv[])
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi a hora atual\n\n");
-                        }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVTIME")==0){
-                                printf("Hora atual: %d\n",comm.number);
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
                         }
                     }
                     else {
@@ -619,29 +600,6 @@ int main(int argc, char *argv[])
                         if(n == sizeof(CA)){
                             printf("[INFO] Licitei o item %d por %d SOCoins.\n\n",comm.number, comm.secNumber);
                         }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ERRSALDO")==0){
-                                printf("[INFO] O seu saldo não é suficiente para completar a transação.\nO seu saldo é de %d SOCoins.",comm.number);
-                            }
-                            else if(strcmp(comm.word,"BOUGHT")==0){
-                                printf("[INFO] O item %d foi comprado com sucesso!\nO seu saldo atual é de %d SOCoins.\n",atoi(comando[1]),comm.number);
-                            }
-                            else if(strcmp(comm.word,"BIDDED")==0){
-                                printf("[INFO] Licitação de %d colocada no item %d.\nO seu saldo atual é de %d SOCoins.",atoi(comando[2]),atoi(comando[1]),comm.number);
-                            }
-                            else if(strcmp(comm.word,"ERRID")==0){
-                                printf("[INFO] Item com o id %d não encontrado.\n",atoi(comando[1]));
-                            }
-                            else if(strcmp(comm.word,"ERRVAL")==0){
-                                printf("[INFO] O valor de licitação é inferior ao preço atual do item, por favor faça nova licitação.\n");
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
-                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -661,17 +619,6 @@ int main(int argc, char *argv[])
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi para consultar o meu saldo.\n\n");
-                        }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVCASH")==0){
-                                printf("[INFO] O meu saldo atual: %d SOCoins\n",comm.number);
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
                         }
                     }
                     else {
@@ -710,17 +657,6 @@ int main(int argc, char *argv[])
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
                         if(n == sizeof(CA)){
                             printf("[INFO] Pedi para adicionar %d SOCoins ao meu saldo.\n\n",comm.number);
-                        }
-
-                        //Recebe resposta do backend
-                        int resposta = read(fd_cli_fifo,&comm,sizeof(CA));
-                        if(resposta == sizeof(CA)){
-                            if(strcmp(comm.word,"ENVADDMONEY")==0){
-                                printf("[INFO] Foram adicionadas %d SOCoins ao seu saldo.\nO seu saldo atual é de %d SOCoins.",atoi(comando[1]),comm.number);
-                            }
-                            else{
-                                printf("[ERROR] Erro no pedido. Por favor tente mais tarde.\n");
-                            }
                         }
                     }
                     else {

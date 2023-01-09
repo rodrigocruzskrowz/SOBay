@@ -19,7 +19,8 @@ void removeUserConnection(User ut, User *connUt, int *nusers){
             encontrado = 1;
         }
     }
-    (*nusers)--;
+    if(encontrado==1)
+        (*nusers)--;
 }
 
 void initPlataforma(){
@@ -208,8 +209,8 @@ void *respondeUsers(void *data){
             }
 
             else if(strcmp(comm.word,"CRIAR")==0){
-                //Lê dados do item
 
+                //Lê dados do item
                 printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s\nLicitador: %s\n\n",
                        comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
 
@@ -234,7 +235,7 @@ void *respondeUsers(void *data){
                 write(fd_cli_fifo, &comm, sizeof(CA));
                 close(fd_cli_fifo);
 
-                printf(":::::LISTA DE ITEMS:::::");
+                printf(":::::NOVA LISTA DE ITEMS:::::");
                 for(int i=0; i<*trr->nlistIt; i++){
                     printf("\n:::ITEM %d:::\n",i+1);
                     printf("ID: %d\n", trr->listIt[i].id);
@@ -406,11 +407,12 @@ void *respondeUsers(void *data){
             }
 
             else if(strcmp(comm.word,"BUY")==0){
-                //TODO: Alterar para utilizar a lista de utilizadores e não fazer a leitura diretamente do ficheiro.
                 //word-IDENTIFICATION WORD; secWord-USERNAME; number-ITEM ID; secNumber-VALOR
                 int encontrou = 0;
                 int compra = 0;
                 int novoSaldo;
+                int idItemVendido = 0;
+                int idItemLicitado = 0;
 
                 sprintf(res_cli_fifo, FRND_FIFO, comm.ut.pid);
                 fd_cli_fifo = open(res_cli_fifo, O_WRONLY);
@@ -434,32 +436,36 @@ void *respondeUsers(void *data){
                                 novoSaldo = (saldo - comm.secNumber);
                                 updateUserBalance(comm.secWord,novoSaldo);
                                 saveUsersFile(FUSERS);
+
+                                //Verifica se item tem licitador
+                                if(strcmp(trr->listIt[i].licitador,"-")!=0){
+                                    //Restituir saldo do ultimo licitador
+                                    int res = updateUserBalance(trr->listIt[i].licitador,trr->listIt[i].bid);
+                                    if(res == -1){
+                                        printf("[WARNING] Não foi possível restituir o saldo do licitador anterior.\n");
+                                        printf("[ERRO] %s\n",getLastErrorText());
+                                    }
+                                    else if(res == 0){
+                                        printf("[WARNING] O utilizador '%s' não foi encontrado. Não foi possível restituir o seu saldo.\n",trr->listIt[i].licitador);
+                                    }
+                                    else{
+                                        saveUsersFile(FUSERS);
+                                        printf("[INFO] Saldo do utilizador '%s' restituido.\n",trr->listIt[i].licitador);
+                                    }
+                                }
+
+                                idItemVendido = i;
                                 compra = 1;
                             }else{
                                 //Saldo insuficiente
                                 strcpy(comm.word,"ERRSALDO");
-                                comm.number = saldo;
+                                comm.ut.saldo = saldo;
                                 write(fd_cli_fifo,&comm,sizeof(CA));
                             }
                         }
                         else if(trr->listIt[i].bid < comm.secNumber){
                             //Licitação
-                            //Verifica se item tem licitador
-                            if(strcmp(trr->listIt[i].licitador,"-")!=0){
-                                //Restituir saldo do ultimo licitador
-                                int res = updateUserBalance(trr->listIt[i].licitador,trr->listIt[i].bid);
-                                if(res == -1){
-                                    printf("[WARNING] Não foi possível restituir o saldo do licitador anterior.\n");
-                                    printf("[ERRO] %s\n",getLastErrorText());
-                                }
-                                else if(res == 0){
-                                    printf("[WARNING] O utilizador '%s' não foi encontrado. Não foi possível restituir o seu saldo.\n",trr->listIt[i].licitador);
-                                }
-                                else{
-                                    saveUsersFile(FUSERS);
-                                    printf("[INFO] Saldo do utilizador '%s' restituido.\n",trr->listIt[i].licitador);
-                                }
-                            }
+                            idItemLicitado = i;
                             int saldo = getUserBalance(comm.secWord);
                             if(saldo >= comm.secNumber){
                                 //Aprova licitação
@@ -468,10 +474,41 @@ void *respondeUsers(void *data){
                                 saveUsersFile(FUSERS);
                                 strcpy(trr->listIt[i].licitador,comm.secWord);
 
+                                //Verifica se item tem licitador
+                                if(strcmp(trr->listIt[i].licitador,"-")!=0){
+                                    //Restituir saldo do ultimo licitador
+                                    int saldoAtual = getUserBalance(trr->listIt[i].licitador);
+                                    int res = updateUserBalance(trr->listIt[i].licitador,saldoAtual + trr->listIt[i].bid);
+                                    saveUsersFile(FUSERS);
+                                    if(res == -1){
+                                        printf("[WARNING] Não foi possível restituir o saldo do licitador anterior.\n");
+                                        printf("[ERRO] %s\n",getLastErrorText());
+                                    }
+                                    else if(res == 0){
+                                        printf("[WARNING] O utilizador '%s' não foi encontrado. Não foi possível restituir o seu saldo.\n",trr->listIt[i].licitador);
+                                    }
+                                    else{
+                                        saveUsersFile(FUSERS);
+                                        printf("[INFO] Saldo do utilizador '%s' restituido em %d SOCoins.\n",trr->listIt[i].licitador,trr->listIt[i].bid);
+                                    }
+                                }
+
                                 //Envia para frontend
                                 strcpy(comm.word,"BIDDED");
-                                comm.number = novoSaldo;
+                                comm.ut.saldo = novoSaldo;
                                 write(fd_cli_fifo,&comm,sizeof(CA));
+
+                                //Avisa todos os utilizadores ligados item licitado
+                                for(int i=0;i<*trr->nConnUt;i++){
+                                    char res_cli_fifo_tmp[MAX_SIZE_FIFO];
+                                    int fd_cli_fifo_tmp;
+                                    sprintf(res_cli_fifo_tmp, FRND_FIFO, trr->connUt[i].pid);
+                                    fd_cli_fifo_tmp = open(res_cli_fifo_tmp, O_WRONLY);
+                                    strcpy(comm.word,"ITLICIT");
+                                    strcpy(comm.secWord,trr->listIt[idItemLicitado].nome);
+                                    write(fd_cli_fifo_tmp, &comm, sizeof(CA));
+                                    close(fd_cli_fifo_tmp);
+                                }
                             }
                             else{
                                 //Saldo insuficiente
@@ -488,12 +525,24 @@ void *respondeUsers(void *data){
                 }
 
                 if(compra == 1){
-                    *trr->nlistIt--;
+                    (*trr->nlistIt)--;
 
                     //Envia para frontend
                     strcpy(comm.word,"BOUGHT");
-                    comm.number = novoSaldo;
+                    comm.ut.saldo = novoSaldo;
                     write(fd_cli_fifo,&comm,sizeof(CA));
+
+                    //Avisa todos os utilizadores ligados item comprado
+                    for(int i=0;i<*trr->nConnUt;i++){
+                        char res_cli_fifo_tmp[MAX_SIZE_FIFO];
+                        int fd_cli_fifo_tmp;
+                        sprintf(res_cli_fifo_tmp, FRND_FIFO, trr->connUt[i].pid);
+                        fd_cli_fifo_tmp = open(res_cli_fifo_tmp, O_WRONLY);
+                        strcpy(comm.word,"ITBOUGHT");
+                        strcpy(comm.secWord,trr->listIt[idItemVendido].nome);
+                        write(fd_cli_fifo_tmp, &comm, sizeof(CA));
+                        close(fd_cli_fifo_tmp);
+                    }
                 }
 
                 if(encontrou == 0){
@@ -539,7 +588,7 @@ void *respondeUsers(void *data){
                 }
 
                 strcpy(comm.word,"ENVADDMONEY");
-                comm.number = novoSaldo;
+                comm.ut.saldo = novoSaldo;
                 write(fd_cli_fifo,&comm,sizeof(CA));
 
                 close(fd_cli_fifo);
@@ -810,8 +859,8 @@ int main() {
     //Verifica se a variavel de ambiente FUSERS existe
     if(getenv("FUSERS") == NULL){
         printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-//        FUSERS = "../users.txt";
-        exit(1);
+        FUSERS = "../users.txt";
+//        exit(1);
     }
     else{
         FUSERS = getenv("FUSERS");
@@ -821,8 +870,8 @@ int main() {
     //Verifica se a variavel de ambiente FPROMOTERS existe
     if(getenv("FPROMOTERS") == NULL){
         printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
-//        FPROMOTERS = "../promotores.txt";
-        exit(1);
+        FPROMOTERS = "../promotores.txt";
+//        exit(1);
     }
     else{
         FPROMOTERS = getenv("FPROMOTERS");
@@ -832,8 +881,8 @@ int main() {
     //Verifica se a variavel de ambiente FITEMS existe
     if(getenv("FITEMS") == NULL){
         printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-//        FITEMS = "../items.txt";
-        exit(1);
+        FITEMS = "../items.txt";
+//        exit(1);
     }
     else{
         FITEMS = getenv("FITEMS");
@@ -843,8 +892,8 @@ int main() {
     //Verifica se a variavel de ambiente HEARTBEAT existe
     if(getenv("HEARTBEAT") == NULL){
         printf("A variável de ambiente 'HEARTBEAT' não foi definida.\n");
-//        HEARTBEAT = 10;
-        exit(1);
+        HEARTBEAT = 10;
+//        exit(1);
     }
     else{
         HEARTBEAT = atoi(getenv("HEARTBEAT"));
@@ -1089,7 +1138,6 @@ int main() {
                                 comp = 0;
 
                                 //Encerra promotor
-                                //TODO: ENCERRAR A THREAD
                                 int fd_prom;
                                 char res_prom_fifo[MAX_SIZE_FIFO];
 
