@@ -3,6 +3,9 @@
 void imprimeItems(Item *it, int nitems){
     for(int i=0; i<nitems; i++) {
         printf("\n:::ITEM %d:::\n", i + 1);
+        if(it[i].promocao.duracao > 0){
+            printf("EM PROMOÇÃO!\n");
+        }
         printf("ID: %d\n", it[i].id);
         printf("Item: %s\n", it[i].nome);
         printf("Categoria: %s\n", it[i].categoria);

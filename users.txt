@@ -1,9 +1,10 @@
-jose jj 100
-manuel passmanuel 90
+jose jj 200
+manuel2 passmanuel 190
 ana asd 300
 rosa rosinha 50
 artur password 20
-daniel dani 38
+daniel dani 9998
 leandro leandro 56
 joana joana 99
 teste teste 1431
+

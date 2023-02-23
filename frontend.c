@@ -16,9 +16,9 @@ void *sendHeartBeat(void *pdata){
         comm.ut.pid = thb->pid;
         //int fdhb = open(HB_FIFO,O_WRONLY);
         int n = write(thb->fd_hb_fifo, &comm, sizeof(CA));
-        if(n == sizeof(CA)){
-            printf("\n[INFO] Enviei %s\n", comm.secWord);
-        }
+//        if(n == sizeof(CA)){
+//            printf("\n[INFO] Enviei %s\n", comm.secWord);
+//        }
         //close(fdhb);
 
         //ESPERAR PELO TRINCO (DESBLOQUEAR)
@@ -36,9 +36,9 @@ void sendHeartbeat(){
     comm.ut.pid = getpid();
     int fdhb = open(HB_FIFO,O_WRONLY);
     int n = write(fdhb, &comm, sizeof(CA));
-    if(n == sizeof(CA)){
-        printf("[INFO] Enviei %s\n", comm.word);
-    }
+//    if(n == sizeof(CA)){
+//        printf("[INFO] Enviei %s\n", comm.word);
+//    }
     close(fdhb);
 }
 
@@ -113,10 +113,10 @@ int main(int argc, char *argv[])
 
         //Envia login para o BACKEND
         int n = write(fd_bknd_fifo, &main, sizeof(CA));
-        if(n == sizeof(CA)){
-            printf("[INFO] Enviei %s %s %d\n", main.ut.nome, main.ut.password, main.ut.pid);
-            printf("[INFO] Pedi para autenticar\n\n");
-        }
+//        if(n == sizeof(CA)){
+//            printf("[INFO] Enviei %s %s %d\n", main.ut.nome, main.ut.password, main.ut.pid);
+//            printf("[INFO] Pedi para autenticar\n\n");
+//        }
         //Recebe validação do login
         int resposta;
         resposta = read(fd_cli_fifo, &main, sizeof(CA));
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
                     }
 
                     else if(strcmp(comm.word,"ENVTIME")==0){
-                        printf("Hora atual: %d\n",comm.number);
+                        printf("[INFO] Hora atual: %d\n",comm.number);
                     }
 
                     else if(strcmp(comm.word,"ERRSALDO")==0){
@@ -389,9 +389,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.it[0].vendedor,main.ut.nome);
                         strcpy(comm.it[0].licitador,"-");
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Enviei %s %d %s %s %d %d %d %s %s\n\n",comm.word,comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Enviei %s %d %s %s %d %d %d %s %s\n\n",comm.word,comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -409,9 +409,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.word,"LISTAR");
                         comm.ut.pid = main.ut.pid;
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi para '%s' items.\n\n",comm.word);
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi para '%s' items.\n\n",comm.word);
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -430,9 +430,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.word,"LISTCAT");
                         strcpy(comm.secWord,comando[1]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi os items da categoria: '%s'\n\n",comm.secWord);
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi os items da categoria: '%s'\n\n",comm.secWord);
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -452,9 +452,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.word,"LISTSEL");
                         strcpy(comm.secWord,comando[1]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi os items do vendedor: '%s'\n\n",comm.secWord);
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi os items do vendedor: '%s'\n\n",comm.secWord);
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -488,9 +488,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.word,"LISTVAL");
                         comm.number = atoi(comando[1]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi os items até %d SOCoins.\n\n",atoi(comando[1]));
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi os items até %d SOCoins.\n\n",atoi(comando[1]));
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -524,9 +524,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.word,"LISTIM");
                         comm.number = atoi(comando[1]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi os items até à hora %d\n\n",atoi(comando[1]));
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi os items até à hora %d\n\n",atoi(comando[1]));
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -543,9 +543,9 @@ int main(int argc, char *argv[])
                         //Envia pedido para o backend
                         strcpy(comm.word,"TIME");
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi a hora atual\n\n");
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi a hora atual\n\n");
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -617,9 +617,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.word,"CASH");
                         strcpy(comm.secWord,main.ut.nome);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi para consultar o meu saldo.\n\n");
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi para consultar o meu saldo.\n\n");
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -655,9 +655,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.secWord,main.ut.nome);
                         comm.number = atoi(comando[1]);
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Pedi para adicionar %d SOCoins ao meu saldo.\n\n",comm.number);
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Pedi para adicionar %d SOCoins ao meu saldo.\n\n",comm.number);
+//                        }
                     }
                     else {
                         printf("[WARNING] O comando inserido não é válido.\n");
@@ -673,9 +673,9 @@ int main(int argc, char *argv[])
                         strcpy(comm.ut.nome,main.ut.nome);
                         strcpy(comm.word,"EXIT");
                         int n = write(fd_bknd_fifo,&comm,sizeof(CA));
-                        if(n == sizeof(CA)){
-                            printf("[INFO] Avisei que me ia desconectar.\n\n");
-                        }
+//                        if(n == sizeof(CA)){
+//                            printf("[INFO] Avisei que me ia desconectar.\n\n");
+//                        }
                         break;
                     }
                     else {

@@ -1,6 +1,0 @@
-1 amplificador musica 150 300 700 manuel -
-2 volante automovel 90 0 657 daniel manuel
-3 martelo construcao 42 50 15 artur -
-4 computador eletrodomesticos 379 0 3 joana -
-5 elastico desporto 103 203 504 daniel -
-6 berbequim construcao 400 499 242 artur -

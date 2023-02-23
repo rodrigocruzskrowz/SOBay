@@ -12,14 +12,15 @@ void removeUserConnection(User ut, User *connUt, int *nusers){
     for(int i=0; i<*nusers; i++){
         if(encontrado == 1){
             connUt[i-1] = connUt[i];
-            printf("[INFO] Utilizador '%s' removido.\n",ut.nome);
+//            printf("[INFO] Utilizador '%s' removido.\n",ut.nome);
             continue;
         }
+
         if(connUt[i].pid == ut.pid){
             encontrado = 1;
         }
     }
-    if(encontrado==1)
+    if(encontrado == 1)
         (*nusers)--;
 }
 
@@ -211,8 +212,8 @@ void *respondeUsers(void *data){
             else if(strcmp(comm.word,"CRIAR")==0){
 
                 //Lê dados do item
-                printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s\nLicitador: %s\n\n",
-                       comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
+//                printf("\nItem recebido:\nId: %d\nNome: %s\nCategoria: %s\nPreço atual: %d\nPreço compre já: %d\nTempo até fim de leilão: %d\nVendedor: %s\nLicitador: %s\n\n",
+//                       comm.it[0].id,comm.it[0].nome,comm.it[0].categoria,comm.it[0].bid,comm.it[0].buyNow,comm.it[0].tempo,comm.it[0].vendedor,comm.it[0].licitador);
 
                 //Coloca item à venda (adiciona à lista de items)
                 trr->listIt[*trr->nlistIt].id = PROX_ID;
@@ -265,7 +266,7 @@ void *respondeUsers(void *data){
 
                 //Enviar lista de items
                 int n = write(fd_cli_fifo,&comm,sizeof(CA));
-                printf("Enviei %d items.\n",itemsEnviados);
+                printf("[INFO] Enviei %d items.\n",itemsEnviados);
 
                 close(fd_cli_fifo);
             }
@@ -289,7 +290,7 @@ void *respondeUsers(void *data){
 
                     //Enviar items da categoria recebida
                     write(fd_cli_fifo,&comm,sizeof(CA));
-                    printf("Enviei %d items.\n",itemsAEnviar);
+                    printf("[INFO] Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
@@ -320,7 +321,7 @@ void *respondeUsers(void *data){
 
                     //Enviar items da categoria recebida
                     write(fd_cli_fifo,&comm,sizeof(CA));
-                    printf("Enviei %d items.\n",itemsAEnviar);
+                    printf("[INFO] Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
@@ -351,7 +352,7 @@ void *respondeUsers(void *data){
 
                     //Enviar items da categoria recebida
                     write(fd_cli_fifo,&comm,sizeof(CA));
-                    printf("Enviei %d items.\n",itemsAEnviar);
+                    printf("[INFO] Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
@@ -382,7 +383,7 @@ void *respondeUsers(void *data){
 
                     //Enviar items da categoria recebida
                     write(fd_cli_fifo,&comm,sizeof(CA));
-                    printf("Enviei %d items.\n",itemsAEnviar);
+                    printf("[INFO] Enviei %d items.\n",itemsAEnviar);
                 }
                 else{
                     //Enviar erro (nenhum item a listar)
@@ -627,6 +628,7 @@ void *gerePromotores(void *data){
         close(canal[0]);
 
         execl(tpd->promotor->designacao, tpd->promotor->designacao, NULL);
+//        printf("BLoq\n");
 
         printf("[ERRO] Erro no 'execl' da thread %d %s.\n",tpd->promotor->threadNumber,tpd->promotor->designacao);
         pthread_exit(NULL);
@@ -636,7 +638,9 @@ void *gerePromotores(void *data){
     fflush(stdout);
     memset(str,0,MAX_SIZE);
     while (tpd->para == 1) {
+//        printf("vou ler\n");
         res = read(canal[0], str, sizeof(str)-1);
+//        printf("li\n");
         if (res > 0) {
             str[res] = '\0';
             printf("O promotor enviou-me: %s", str);
@@ -644,6 +648,7 @@ void *gerePromotores(void *data){
             char s[MAX_SIZE];
             cont = 0;
             pthread_mutex_lock(tpd->ptrinco);
+//            printf("bloqueei\n");
             for(int itr=0; itr<strlen(str);itr++){
                 if(str[itr] != '\n' && str[itr] != ' '){
                     s[cont++] = str[itr];
@@ -695,7 +700,9 @@ void *gerePromotores(void *data){
                 }
             }
             pthread_mutex_unlock(tpd->ptrinco);
+//            printf("desbloqueei\n");
         }
+//        printf("repetir ciclo\n");
     }
     union sigval sv;
     sv.sival_int = 0;
@@ -747,9 +754,9 @@ void *handleHeartBeat(void *pdata){
         if(res_sel > 0 && FD_ISSET(thbd->fd_hb, &fdhb)){
             //Lê
             int n = read(thbd->fd_hb, &comm, sizeof(CA));
-            if(n == sizeof(CA)){
-                printf("\n[INFO] Recebi o HEARTBEAT de %s (PID: %d)\n", comm.word, comm.ut.pid);
-            }
+//            if(n == sizeof(CA)){
+//                printf("\n[INFO] Recebi o HEARTBEAT de %s (PID: %d)\n", comm.word, comm.ut.pid);
+//            }
 
             ut.pid = comm.ut.pid;
             strcpy(ut.nome,comm.word);
@@ -763,7 +770,7 @@ void *handleHeartBeat(void *pdata){
 
                 //Atualiza tempo para expirar
                 thbd->connUt[i].expiresAt = TEMPO + HEARTBEAT;
-                printf("[INFO] Conexão do utilizador %s (%d) válida até %d. (HORA ATUAL: %d)\n",thbd->connUt[i].nome,thbd->connUt[i].pid,thbd->connUt[i].expiresAt,TEMPO);
+//                printf("[INFO] Conexão do utilizador %s (%d) válida até %d. (HORA ATUAL: %d)\n",thbd->connUt[i].nome,thbd->connUt[i].pid,thbd->connUt[i].expiresAt,TEMPO);
 
                 ut.pid = 0;
 
@@ -776,8 +783,10 @@ void *handleHeartBeat(void *pdata){
                 pthread_mutex_lock(thbd->ptrinco);
 
                 //Remove utilizador expirado
-                removeUserConnection(ut,thbd->connUt,thbd->nConnUt);
                 printf("[INFO] Conexão com o utilizador %s (%d) terminada. HEARTBEAT EXPIROU.\n",thbd->connUt[i].nome,thbd->connUt[i].pid);
+                ut.pid = thbd->connUt[i].pid;
+                strcpy(ut.nome, thbd->connUt[i].nome);
+                removeUserConnection(ut,thbd->connUt,thbd->nConnUt);
 
                 pthread_mutex_unlock(thbd->ptrinco);
             }
@@ -859,8 +868,8 @@ int main() {
     //Verifica se a variavel de ambiente FUSERS existe
     if(getenv("FUSERS") == NULL){
         printf("A variável de ambiente 'FUSERS' não foi definida.\n");
-        FUSERS = "../users.txt";
-//        exit(1);
+//        FUSERS = "../users.txt";
+        exit(1);
     }
     else{
         FUSERS = getenv("FUSERS");
@@ -870,8 +879,8 @@ int main() {
     //Verifica se a variavel de ambiente FPROMOTERS existe
     if(getenv("FPROMOTERS") == NULL){
         printf("A variável de ambiente 'FPROMOTERS' não foi definida.\n");
-        FPROMOTERS = "../promotores.txt";
-//        exit(1);
+//        FPROMOTERS = "../promotores.txt";
+        exit(1);
     }
     else{
         FPROMOTERS = getenv("FPROMOTERS");
@@ -881,8 +890,8 @@ int main() {
     //Verifica se a variavel de ambiente FITEMS existe
     if(getenv("FITEMS") == NULL){
         printf("A variável de ambiente 'FITEMS' não foi definida.\n");
-        FITEMS = "../items.txt";
-//        exit(1);
+//        FITEMS = "../items.txt";
+        exit(1);
     }
     else{
         FITEMS = getenv("FITEMS");
@@ -892,8 +901,8 @@ int main() {
     //Verifica se a variavel de ambiente HEARTBEAT existe
     if(getenv("HEARTBEAT") == NULL){
         printf("A variável de ambiente 'HEARTBEAT' não foi definida.\n");
-        HEARTBEAT = 10;
-//        exit(1);
+//        HEARTBEAT = 10;
+        exit(1);
     }
     else{
         HEARTBEAT = atoi(getenv("HEARTBEAT"));
@@ -1141,8 +1150,14 @@ int main() {
                                 int fd_prom;
                                 char res_prom_fifo[MAX_SIZE_FIFO];
 
-                                pthread_join(threadPromotor[promotor_lista[j].threadNumber],NULL);
+                                printf("[INFO] A encerrar promotores não listados... Por favor aguarde...\n");
 
+                                pddata[promotor_lista[j].threadNumber].para = 0;
+                                pthread_join(threadPromotor[promotor_lista[j].threadNumber],NULL);
+                                
+                                printf("[INFO] Promotores encerrados, pode continuar...");
+
+//                                printf("\n[INFO] Promotor terminado\n");
                                 //Remove da lista
                                 reorganiza = 1;
                             }
@@ -1212,8 +1227,10 @@ int main() {
                     }
 
                     if(strcmp(promotor_lista[it].designacao,comando[1])==0){
+                        printf("[INFO] A encerrar promotor... Por favor aguarde...\n");
                         pddata[promotor_lista[it].threadNumber].para = 0;
                         pthread_join(threadPromotor[promotor_lista[it].threadNumber],NULL);
+                        printf("[INFO] Promotor encerrado, pode continuar...");
 
                         for(int x=0; x<nitems_lista; x++){
                             if(strcmp(item_lista[x].promocao.categoria,comando[1])==0){
@@ -1287,18 +1304,18 @@ int main() {
     CA end;
     strcpy(end.word,"SHUTDOWN");
     int n = write(fd_hb,&end,sizeof(CA));
-    if(n == sizeof(CA)){
-        printf("[INFO] Enviei %s\n",end.word);
-    }
+//    if(n == sizeof(CA)){
+//        printf("[INFO] Enviei %s\n",end.word);
+//    }
     pthread_join(threadHB, NULL);
 
     //Termina thread request/response
     rrdata.para = 0;
     strcpy(end.word,"SHUTDOWN");
     n = write(fd_sv_fifo,&end,sizeof(CA));
-    if(n == sizeof(CA)){
-        printf("[INFO] Enviei %s\n",end.word);
-    }
+//    if(n == sizeof(CA)){
+//        printf("[INFO] Enviei %s\n",end.word);
+//    }
     pthread_join(threadRR, NULL);
 
     pthread_mutex_destroy(&trinco_promocoes);
